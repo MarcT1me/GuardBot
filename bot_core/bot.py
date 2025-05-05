@@ -3,8 +3,11 @@ from functools import wraps
 import discord
 from discord.ext import commands
 from pathlib import Path
+
+import bot_core.cogs
 from .database import Database
-from .script_engine import ScriptEngine
+
+from loguru import logger
 
 
 def try_execute(func):
@@ -13,13 +16,13 @@ def try_execute(func):
         try:
             return await func(self, interaction, *args, **kwargs)
         except discord.Forbidden:
-            await interaction.response.send_message(
+            await interaction.response.send_message(  # type: ignore
                 "❌ Недостаточно прав для выполнения!",
                 ephemeral=True
             )
         except Exception as e:
             print(f"Error: {e}")
-            await interaction.response.send_message(
+            await interaction.response.send_message(  # type: ignore
                 "❌ Неизвестная ошибка при выполнении!",
                 ephemeral=True
             )
@@ -28,11 +31,14 @@ def try_execute(func):
 
 
 class GuardBot(commands.Bot):
-    def __init__(self, database: Database, script_engine: ScriptEngine,
+    def __init__(self, database: Database,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.db = database
-        self.script_engine = script_engine
+
+    @property
+    def script_eng(self) -> 'bot_core.cogs.script_engine.ScriptEngine':
+        return self.cogs.get("ScriptEngine")
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
@@ -47,9 +53,9 @@ class GuardBot(commands.Bot):
             cog_name = f"bot_core.cogs.{cog_file.stem}"
             try:
                 await self.load_extension(cog_name)
-                print(f"✅ Cog loaded: {cog_name}")
+                logger.success(f"✅ Cog loaded: {cog_name}\n")
             except Exception as e:
-                print(f"❌ Error loading {cog_name}: {e}")
+                logger.error(f"❌ Error loading {cog_name}: {e}\n")
 
     async def start(self, *args, **kwargs) -> None:
         await self.db.connect()

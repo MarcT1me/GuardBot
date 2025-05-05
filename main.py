@@ -2,19 +2,11 @@ from os import getenv
 
 from discord import Intents
 
-from bot_core import GuardBot
-from bot_core import Database
+from bot_core import SQLiteDatabase, GuardBot
 
 
-class MockDatabase(Database):
-    async def connect(self):
-        print("🔌 Mock DB connected")
-
-    async def close(self):
-        print("🔌 Mock DB closed")
-
-    async def execute(self, query: str, *args):
-        print(f"📝 Executing: {query}")
+class GuardDatabase(SQLiteDatabase):
+    pass
 
 
 def main():
@@ -23,7 +15,7 @@ def main():
     intents.message_content = True
 
     bot = GuardBot(
-        database=MockDatabase(),
+        database=GuardDatabase(),
         command_prefix="/",
         intents=intents
     )

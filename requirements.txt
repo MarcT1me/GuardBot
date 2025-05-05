@@ -1,3 +1,4 @@
 loguru
 discord
 lupa
+aiosqlite
