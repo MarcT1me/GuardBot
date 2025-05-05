@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from pathlib import Path
 from .database import Database
+from .script_engine import ScriptEngine
 
 
 def try_execute(func):
@@ -27,9 +28,11 @@ def try_execute(func):
 
 
 class GuardBot(commands.Bot):
-    def __init__(self, database: Database, *args, **kwargs):
+    def __init__(self, database: Database, script_engine: ScriptEngine,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.db = database
+        self.script_engine = script_engine
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
