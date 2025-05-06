@@ -4,12 +4,11 @@ from discord.ext import commands
 
 from loguru import logger
 
-from bot_core.bot import try_execute, GuardBot
+from bot_core.bot import GuardBot
 
 
 class FunCog(commands.Cog):
-    @app_commands.command(name="ping", description="...")
-    @try_execute
+    @app_commands.command(name="ping", description="checking on bot working")
     async def ping(self, interaction: discord.Interaction):
         await interaction.response.send_message(  # type: ignore
             "Pong!"

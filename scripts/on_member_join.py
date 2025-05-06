@@ -1,4 +1,5 @@
 import discord
+
 import bot_core
 
 
@@ -9,7 +10,7 @@ async def main(bot: bot_core.GuardBot, *, member: discord.Member):
 
     server_id = member.guild.id
     server_name = member.guild.name
-    
+
     template: dict = await bot.db.execute("FROM Templates SELECT data IF (ServerID == ?)", server_id)
     role_ids: list = await bot.db.execute("FROM Roles SELECT RoleID IF (ServerID == ?)", server_id)
 

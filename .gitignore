@@ -1,6 +1,6 @@
 .venv
 .idea
-ХУЙНЯ
+__test__
 
 *__test__*
 *.db

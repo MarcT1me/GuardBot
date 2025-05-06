@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
 import asyncio
 from pathlib import Path
-from loguru import logger
-import lupa
+
 from discord.ext import commands
+
+import lupa
+from loguru import logger
+
 from bot_core.bot import GuardBot
 
 
