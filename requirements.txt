@@ -1,4 +1,6 @@
 loguru
 discord
+tortoise-orm
+aerich
+docker
 lupa
-aiosqlite

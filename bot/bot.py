@@ -6,8 +6,8 @@ from discord.ext import commands
 
 from loguru import logger
 
-import bot_core.cogs
-from .database import Database
+import bot.cogs.script_engine
+from .database import GuardDatabase
 
 
 class PermissionCheckError(Exception):
@@ -18,14 +18,27 @@ class PermissionCheckError(Exception):
 
 
 class GuardBot(commands.Bot):
-    def __init__(self, database: Database,
-                 *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, database: GuardDatabase):
+        intents = discord.Intents.default()
+        intents.members = True
+        intents.message_content = True
+
+        super().__init__(
+            command_prefix="/",
+            intents=intents
+        )
         self.db = database
 
     @staticmethod
-    def normalized_reason(user: discord.User, reason: str | None) -> str:
-        return f"{user.name}: {reason if reason else 'unspecified'}"
+    def normalize_response(response: str, reason: str) -> str:
+        return response + "\nПричина: " + reason if reason else ""
 
     @staticmethod
     def error_handler(func):
@@ -103,20 +116,25 @@ class GuardBot(commands.Bot):
         return decorator
 
     @property
-    def script_eng(self) -> 'bot_core.cogs.script_engine.ScriptEngine':
+    def script_eng(self) -> bot.cogs.script_engine.ScriptEngine:
         return self.cogs.get("ScriptEngine")
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
+        await self.db.connect()
         await self._load_cogs()
         await self.tree.sync()
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        logger.success(f"✅ Бот {self.user} готов к работе!")
 
     async def _load_cogs(self) -> None:
         """Загрузка всех когов из папки cogs"""
         cogs_dir = Path(__file__).parent / "cogs"
 
         for cog_file in cogs_dir.glob("*.py"):
-            cog_name = f"bot_core.cogs.{cog_file.stem}"
+            cog_name = f"bot.cogs.{cog_file.stem}"
             try:
                 await self.load_extension(cog_name)
                 logger.success(f"✅ Cog loaded: {cog_name}\n")

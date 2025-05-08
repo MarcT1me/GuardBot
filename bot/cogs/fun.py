@@ -4,7 +4,7 @@ from discord.ext import commands
 
 from loguru import logger
 
-from bot_core.bot import GuardBot
+from bot.bot import GuardBot
 
 
 class FunCog(commands.Cog):

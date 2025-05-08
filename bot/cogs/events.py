@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from loguru import logger
 
-from bot_core.bot import GuardBot
+from bot.bot import GuardBot
 
 
 class EventCog(commands.Cog):
@@ -14,22 +14,16 @@ class EventCog(commands.Cog):
     def __init__(self, bot: GuardBot):
         self.bot = bot
 
-    async def get_event_script_name(self, guild, event_name) -> Any:
-        if guild:
-            return await self.bot.db.execute(
-                "FROM Servers SELECT EventScript IF (ServerID == ? AND ScriptName == ?)",
-                guild.id, event_name
-            )
-        else:
-            return None, event_name
+    async def _get_event_script_name(self, guild, event_name: str) -> str:
+        if not guild:
+            return event_name
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        logger.success(f"✅ Бот {self.bot.user} готов к работе!")
+        server, _ = await self.bot.db.get_server(guild.id)
+        return server.scripts.get(event_name, event_name)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        script_name = (await self.get_event_script_name(member.guild, "on_member_join"))[1]
+        script_name = (await self._get_event_script_name(member.guild, "on_member_join"))[1]
 
         await self.bot.script_eng.execute(
             script_name,
@@ -38,7 +32,7 @@ class EventCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
-        script_name = (await self.get_event_script_name(msg.guild, "on_message"))[1]
+        script_name = (await self._get_event_script_name(msg.guild, "on_message"))[1]
 
         await self.bot.script_eng.execute(
             script_name,

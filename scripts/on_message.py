@@ -1,9 +1,9 @@
 import discord
 from loguru import logger
 
-import bot_core
+import bot
 
 
-async def main(_: bot_core.GuardBot, *, msg: discord.Message):
+async def main(_: bot.GuardBot, *, msg: discord.Message):
     logger.info(msg.author.name + ":\n" + msg.content)
     return None
