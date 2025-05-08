@@ -1,6 +1,7 @@
 .venv
 .idea
 __test__
+__pycache__
 
 *__test__*
 *.db

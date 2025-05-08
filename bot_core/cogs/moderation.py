@@ -7,10 +7,6 @@ from loguru import logger
 from bot_core.bot import GuardBot
 
 
-class DiscordPermissionError(Exception):
-    pass
-
-
 class ModerationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -31,55 +27,64 @@ class ModerationCog(commands.Cog):
             return 2
 
     @app_commands.command(name="add_role", description="Выдаёт участнику роль")
+    @GuardBot.error_handler
     @GuardBot.has_permission(manage_roles=True)
     async def add_role(self, interaction: discord.Interaction,
                        member: discord.Member,
                        role: discord.Role,
                        reason: str | None = None
                        ):
+        normalized_reason = GuardBot.normalized_reason(interaction.user, reason)
+
         """Добавить роль пользователю"""
         if self.check_role_hierarchy(interaction.user, role):
             await member.add_roles(
                 role,
-                reason=reason
+                reason=normalized_reason
             )
             await interaction.response.send_message(  # type: ignore
-                f"Роль {role.mention} выдана {member.mention}" + ("\nпричина: " + reason if reason else ""),
+                f"Роль {role.mention} выдана {member.mention}" + (
+                    "\nПричина: " + reason if reason else ""
+                ),
                 allowed_mentions=discord.AllowedMentions(users=True, roles=False)
             )
         else:
             await interaction.response.send_message(  # type: ignore
-                "❌ У меня не вышло выдать роль! Причина - роль выше вашей.",
+                "⚠️ У меня не вышло выдать роль. ||Роль выше вашей||",
                 ephemeral=True
             )
 
     @app_commands.command(name="del_role", description="Убирает у участника роль")
-    @app_commands.checks.has_permissions(manage_roles=True)
-    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    @GuardBot.error_handler
+    @GuardBot.has_permission(manage_roles=True)
     async def del_role(self, interaction: discord.Interaction,
                        member: discord.Member,
                        role: discord.Role,
                        reason: str | None = None
                        ):
+        normalized_reason = GuardBot.normalized_reason(interaction.user, reason)
+
         """Убрать роль у пользователя"""
         if self.check_role_hierarchy(interaction.user, role) == 2:
             await member.remove_roles(
                 role,
-                reason=reason
+                reason=normalized_reason
             )
             await interaction.response.send_message(  # type: ignore
-                f"Роль {role.mention} убрана с участника {member.mention}" + ("\nпричина: " + reason if reason else ""),
+                f"Роль {role.mention} убрана с участника {member.mention}" + (
+                    "\nПричина: " + reason if reason else ""
+                ),
                 allowed_mentions=discord.AllowedMentions(users=True, roles=False)
             )
         else:
             await interaction.response.send_message(  # type: ignore
-                "❌ У меня не вышло забрать роль! Причина - роль выше вашей.",
+                "⚠️ У меня не вышло забрать роль. ||Роль выше вашей||",
                 ephemeral=True
             )
 
     @app_commands.command(name="create_channel", description="Создаёт канал указанного типа")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    @app_commands.checks.bot_has_permissions(manage_channels=True)
+    @GuardBot.error_handler
+    @GuardBot.has_permission(manage_channels=True)
     async def create_channel(
             self,
             interaction: discord.Interaction,
@@ -91,8 +96,9 @@ class ModerationCog(commands.Cog):
         """Создать канал любого типа с расширенными проверками"""
         guild = interaction.guild
 
-        # Нормализация имени канала
+        # Нормализация параметров
         normalized_name = self.normalize_channel_name(channel_name)
+        normalized_reason = GuardBot.normalized_reason(interaction.user, reason)
 
         # Проверка для категорий
         if channel_type == discord.ChannelType.category:
@@ -103,7 +109,7 @@ class ModerationCog(commands.Cog):
                 )
             existing = discord.utils.get(guild.categories, name=normalized_name)
         else:
-            # Проверяем ВО ВСЕХ каналах категории (если указана)
+            # Проверяем во всех каналах категории (если указана)
             existing = discord.utils.find(
                 lambda c: c.name == normalized_name and c.category == category,
                 guild.channels
@@ -127,7 +133,7 @@ class ModerationCog(commands.Cog):
 
         if channel_type not in create_methods:
             return await interaction.response.send_message(  # type: ignore
-                "❌ Неподдерживаемый тип канала!",
+                "⚠️ Неподдерживаемый тип канала!",
                 ephemeral=True
             )
 
@@ -135,13 +141,13 @@ class ModerationCog(commands.Cog):
         if channel_type == discord.ChannelType.category:
             new_channel = await create_methods[channel_type](
                 name=normalized_name,
-                reason=reason
+                reason=normalized_reason
             )
         else:
             new_channel = await create_methods[channel_type](
                 name=normalized_name,
                 category=category,
-                reason=reason
+                reason=normalized_reason
             )
 
         # Формирование ответа
@@ -152,7 +158,9 @@ class ModerationCog(commands.Cog):
         if reason:
             response += f"\nПричина: {reason}"
 
-        await interaction.response.send_message(response)  # type: ignore
+        await interaction.response.send_message(  # type: ignore
+            response
+        )
 
     @staticmethod
     def normalize_channel_name(name: str) -> str:
@@ -160,36 +168,20 @@ class ModerationCog(commands.Cog):
         return name.strip().lower().replace(' ', '-')[:100]
 
     @app_commands.command(name="delete_channel", description="Удаляет текстовый канал")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    @app_commands.checks.bot_has_permissions(manage_channels=True)
+    @GuardBot.error_handler
+    @GuardBot.has_permission(manage_channels=True)
     async def delete_channel(self, interaction: discord.Interaction,
                              channel: discord.TextChannel,
                              reason: str | None = None
                              ):
+
         """Создать текстовый канал"""
-        await channel.delete(reason=reason)
-        await interaction.response.send_message(  # type: ignore
-            f"✅ Канал {channel.name} удалён"
+        await channel.delete(
+            reason=GuardBot.normalized_reason(interaction.user, reason)
         )
-
-    @app_commands.command(name="test_drop", description="Создаёт текстовый канал")
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.checks.bot_has_permissions(administrator=True)
-    async def test_drop(self, interaction: discord.Interaction, level: int):
-        class TestDropException(Exception):
-            pass
-
-        match level:
-            case 1:
-                await interaction.channel.send(
-                    f"""Выкидываю `raise TestDropException<Exception>("TEST DROP")`. уровень - ErrorLevel.First"""
-                )
-                raise TestDropException("TEST DROP")
-            case 2:
-                await interaction.channel.send(  # type: ignore
-                    f"""Выкидываю `raise TestDropException<Exception>("TEST DROP")`. уровень - ErrorLevel.Second"""
-                )
-                raise TestDropException("TEST DROP")
+        await interaction.response.send_message(  # type: ignore
+            f"✅ Канал `{channel.name}` удалён" + ("\nпричина: " + reason if reason else "")
+        )
 
 
 async def setup(bot: GuardBot):
