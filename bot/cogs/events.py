@@ -1,5 +1,3 @@
-from typing import Any
-
 import discord
 from discord.ext import commands
 
@@ -16,26 +14,38 @@ class EventCog(commands.Cog):
 
     async def _get_event_script_name(self, guild, event_name: str) -> str:
         if not guild:
-            return event_name
+            return event_name, None
 
-        server, _ = await self.bot.db.get_server(guild.id)
-        return server.scripts.get(event_name, event_name)
+        server = await self.bot.db.get_server(guild.id)
+        return await self.bot.db.get_script(
+            server=server, script_type="Python-default-event", script_name=event_name
+        ), guild.id
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        await self.bot.script_eng.execute(
+            "on_guild_join",
+            None,
+            guild=guild
+        )
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        script_name = (await self._get_event_script_name(member.guild, "on_member_join"))[1]
+        script_name, guild_id = await self._get_event_script_name(None, "on_member_join")
 
         await self.bot.script_eng.execute(
             script_name,
+            None,
             member=member
         )
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
-        script_name = (await self._get_event_script_name(msg.guild, "on_message"))[1]
+        script_name, guild_id = await self._get_event_script_name(None, "on_message")
 
         await self.bot.script_eng.execute(
             script_name,
+            None,
             msg=msg
         )
 

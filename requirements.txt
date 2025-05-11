@@ -1,6 +1,6 @@
-loguru
-discord
+loguru==0.7.3
+discord==2.3.2
 tortoise-orm
-aerich
-docker
-lupa
+lupa==2.4
+tomlkit
+tomli-w

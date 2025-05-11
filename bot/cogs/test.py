@@ -65,6 +65,7 @@ class TestCog(commands.Cog):
         )
 
 
+
 async def setup(bot: GuardBot):
     logger.debug(f"⚙️ TestCog loading")
     await bot.add_cog(TestCog(bot))

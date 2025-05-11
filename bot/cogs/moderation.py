@@ -34,10 +34,6 @@ class ModerationCog(commands.Cog):
         return 2
 
     @staticmethod
-    def _normalized_reason(user: discord.User, reason: str | None) -> str:
-        return f"{user.name}: {reason if reason else 'unspecified'}"
-
-    @staticmethod
     def _normalize_channel_name(name: str) -> str:
         """Приведение имени канала к правильному формату"""
         return name.strip().lower().replace(' ', '-')[:100]
@@ -52,7 +48,7 @@ class ModerationCog(commands.Cog):
             reason: str | None = None
     ):
         """Добавить роль пользователю"""
-        normalized_reason = self._normalized_reason(interaction.user, reason)
+        normalized_reason = GuardBot.normalized_reason(interaction.user, reason)
 
         if self._check_role_hierarchy(
                 interaction.user, role
@@ -81,7 +77,7 @@ class ModerationCog(commands.Cog):
             reason: str | None = None
     ):
         """Убрать роль у пользователя"""
-        normalized_reason = self._normalized_reason(interaction.user, reason)
+        normalized_reason = GuardBot.normalized_reason(interaction.user, reason)
 
         if self._check_role_hierarchy(
                 interaction.user, role
@@ -113,7 +109,7 @@ class ModerationCog(commands.Cog):
         """Создать канал любого типа с расширенными проверками"""
         guild = interaction.guild  # узнаю сервер
         normalized_name = self._normalize_channel_name(channel_name)
-        normalized_reason = self._normalized_reason(interaction.user, reason)
+        normalized_reason = GuardBot.normalized_reason(interaction.user, reason)
 
         # ищу все каналы с такой-же в категории
         existing = discord.utils.find(
@@ -170,7 +166,7 @@ class ModerationCog(commands.Cog):
 
         """Создать текстовый канал"""
         await channel.delete(
-            reason=self._normalized_reason(interaction.user, reason)
+            reason=GuardBot.normalized_reason(interaction.user, reason)
         )
         await interaction.response.send_message(  # type: ignore
             GuardBot.normalize_response(f"✅ Канал `{channel.name}` удалён", reason)

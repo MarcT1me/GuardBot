@@ -6,7 +6,7 @@ from discord.ext import commands
 
 from loguru import logger
 
-import bot.cogs.script_engine
+import bot.cogs
 from .database import GuardDatabase
 
 
@@ -39,6 +39,10 @@ class GuardBot(commands.Bot):
     @staticmethod
     def normalize_response(response: str, reason: str) -> str:
         return response + "\nПричина: " + reason if reason else ""
+
+    @staticmethod
+    def normalized_reason(user: discord.User, reason: str | None) -> str:
+        return f"{user.name}: {reason if reason else 'unspecified'}"
 
     @staticmethod
     def error_handler(func):
@@ -116,7 +120,7 @@ class GuardBot(commands.Bot):
         return decorator
 
     @property
-    def script_eng(self) -> bot.cogs.script_engine.ScriptEngine:
+    def script_eng(self) -> 'bot.cogs.script_engine.ScriptEngine':
         return self.cogs.get("ScriptEngine")
 
     async def setup_hook(self) -> None:

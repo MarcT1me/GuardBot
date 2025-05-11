@@ -4,4 +4,4 @@ __test__
 __pycache__
 
 *__test__*
-*.db
+*.sqlite3*
