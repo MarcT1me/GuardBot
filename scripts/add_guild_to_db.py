@@ -4,8 +4,14 @@ from loguru import logger
 from bot import GuardBot
 
 
-async def main(*, bot: GuardBot, guild: discord.Guild):
-    await bot.db.save_server(guild.id, guild.name)
+async def main(*, bot: GuardBot, interaction: discord.Interaction):
+    guild = interaction.guild
+    await bot.db.save_server(
+        guild.id,
+        guild.name,
+        is_active=True,
+        voice_channel_announce=1371207588045262868
+    )
 
     await bot.db.save_template(
         guild.id,
@@ -17,6 +23,8 @@ async def main(*, bot: GuardBot, guild: discord.Guild):
         "➕ У нас новый бибус: {member.mention}\\"
         "➕ Коничива: {member.mention}"
     )
+
+    await interaction.channel.send(f"Guild: {guild.name} added to DataBase")
 
     await bot.db.save_template(
         guild.id,
@@ -42,5 +50,7 @@ async def main(*, bot: GuardBot, guild: discord.Guild):
         "join_message_footer",
         "Photo by @protokops. Member #{member.guild.member_count}"
     )
+
+    await interaction.channel.send("Templates added to DataBase")
 
     logger.success(f"init bot deps for {guild.name}")

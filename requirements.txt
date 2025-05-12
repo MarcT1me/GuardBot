@@ -1,6 +1,13 @@
-loguru==0.7.3
-discord==2.3.2
+loguru
+
+discord
+
+pynacl
+yt-dlp
+ffmpeg-python
+
+lupa
+
 tortoise-orm
-lupa==2.4
 tomlkit
 tomli-w

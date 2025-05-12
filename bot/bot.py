@@ -58,23 +58,27 @@ class GuardBot(commands.Bot):
                     f"❌ {target.capitalize()} не хватает прав: {', '.join(missing)}",
                     ephemeral=True
                 )
+                logger.exception(f"{e}")
             except discord.app_commands.MissingPermissions as e:
                 missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
                 await interaction.response.send_message(  # type: ignore
                     f"❌` Вам не хватает прав. ||{', '.join(missing)}||",
                     ephemeral=True
                 )
+                logger.exception(f"{e}")
             except discord.app_commands.BotMissingPermissions as e:
                 missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
                 await interaction.response.send_message(  # type: ignore
                     f"❌` Боту не хватает прав. ||{', '.join(missing)}||",
                     ephemeral=True
                 )
+                logger.exception(f"{e}")
             except discord.Forbidden as e:
                 await interaction.response.send_message(  # type: ignore
                     f"❌ Ошибка доступа. ||{e.text}||",
                     ephemeral=True
                 )
+                logger.exception(f"{e}")
             except discord.HTTPException as e:
                 error_msg = {
                     400: "Некорректные параметры",
@@ -87,11 +91,13 @@ class GuardBot(commands.Bot):
                     f"❌ Ошибка запроса. ||{error_msg}||",
                     ephemeral=True
                 )
+                logger.exception(f"{e}")
             except Exception as e:
                 await interaction.response.send_message(  # type: ignore
                     f"❌ Неизвестная ошибка: {str(e)}",
                     ephemeral=True
                 )
+                logger.exception(f"{e}")
 
         return wrapper
 
@@ -119,9 +125,31 @@ class GuardBot(commands.Bot):
 
         return decorator
 
+    @staticmethod
+    def cog_names():
+        cogs_dir = Path(__file__).parent / "cogs"
+
+        for cog_file in cogs_dir.glob("*.py"):
+            yield f"bot.cogs.{cog_file.stem}"
+
+    async def check_botdev(self, interaction: discord.Interaction) -> bool:
+        # Используем await и новый метод из GuardDatabase
+        ret = await self.db.get_botdevuser(user_id=interaction.user.id)
+        if ret:
+            return True
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
+            return False
+
     @property
     def script_eng(self) -> 'bot.cogs.script_engine.ScriptEngine':
         return self.cogs.get("ScriptEngine")
+
+    @property
+    def voice_cog(self) -> 'bot.cogs.voice.VoiceCog':
+        return self.cogs.get("VoiceCog")
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
@@ -135,15 +163,38 @@ class GuardBot(commands.Bot):
 
     async def _load_cogs(self) -> None:
         """Загрузка всех когов из папки cogs"""
-        cogs_dir = Path(__file__).parent / "cogs"
 
-        for cog_file in cogs_dir.glob("*.py"):
-            cog_name = f"bot.cogs.{cog_file.stem}"
+        for cog_name in self.cog_names():
             try:
                 await self.load_extension(cog_name)
                 logger.success(f"✅ Cog loaded: {cog_name}\n")
             except Exception as e:
                 logger.error(f"❌ Error loading {cog_name}: {e}\n")
+
+    async def re_load_cogs(self, cog_names: list[str] | None = None):
+        """Перезагружает коги (все или указанные) без перезапуска бота"""
+
+        if cog_names is None or "VoiceCog" in cog_names:
+            await self.voice_cog.disconnect_all()
+
+        for cog_name in self.cog_names() if not cog_names else cog_names:
+            try:
+                if cog_name in self.extensions:
+                    await self.unload_extension(cog_name)  # Выгружаем старую версию
+                    await self.load_extension(cog_name)  # Загружаем обновленную
+                    logger.success(f"♻️ Cog reloaded: {cog_name}")
+                else:
+                    await self.load_extension(cog_name)
+                    logger.success(f"✅ New cog loaded: {cog_name}")
+            except Exception as e:
+                logger.error(f"🔥 Failed to reload {cog_name}: {e}")
+                continue
+
+        if cog_names is None or "ScriptEngine" in cog_names:
+            await self.script_eng.on_ready()
+
+        # Синхронизация команд с серверами Discord
+        await self.tree.sync()
 
     async def start(self, *args, **kwargs) -> None:
         await self.db.connect()

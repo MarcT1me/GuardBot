@@ -9,6 +9,7 @@ from bot.bot import GuardBot
 
 class FunCog(commands.Cog):
     @app_commands.command(name="ping", description="checking on bot working")
+    @GuardBot.error_handler
     async def ping(self, interaction: discord.Interaction):
         await interaction.response.send_message(  # type: ignore
             "Pong!"

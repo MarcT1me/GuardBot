@@ -49,6 +49,19 @@ class EventCog(commands.Cog):
             msg=msg
         )
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member,
+                                    before: discord.VoiceState, after: discord.VoiceState):
+        script_name, guild_id = await self._get_event_script_name(None, "on_voice_state_update")
+
+        await self.bot.script_eng.execute(
+            script_name,
+            None,
+            member=member,
+            before=before,
+            after=after
+        )
+
 
 async def setup(bot: GuardBot):
     logger.debug(f"⚙️ EventCog loading")

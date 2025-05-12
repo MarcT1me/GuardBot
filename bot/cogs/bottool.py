@@ -1,4 +1,6 @@
 import datetime
+from pprint import pformat
+import json
 
 import discord
 from discord import app_commands
@@ -84,21 +86,13 @@ class BotToolCog(commands.Cog):
 
         self.manager = ExecutorManager(bot)
 
-    async def check_botdev(self, interaction: discord.Interaction) -> bool:
-        # Используем await и новый метод из GuardDatabase
-        ret = await self.bot.db.get_botdevuser(user_id=interaction.user.id)
-        if ret:
-            return True
-        else:
-            await interaction.response.send_message(  # type: ignore
-                "GET OF FUCK OUT!!! 🤬🤬🤬"
-            )
-            return False
-
     @app_commands.command(name="update_scripts")
     @GuardBot.error_handler
-    async def update_scripts(self, interaction: discord.Interaction, from_db: bool = False):
-        checked = await self.check_botdev(interaction)
+    async def update_scripts(
+            self, interaction: discord.Interaction,
+            from_db: bool = False
+    ):
+        checked = await self.bot.check_botdev(interaction)
         if not checked: return
 
         try:
@@ -129,7 +123,7 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="close_bot")
     @GuardBot.error_handler
     async def close_bot(self, interaction: discord.Interaction):
-        checked = await self.check_botdev(interaction)
+        checked = await self.bot.check_botdev(interaction)
         if not checked: return
 
         await interaction.channel.send(
@@ -148,7 +142,7 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="exec_mode")
     @GuardBot.error_handler
     async def exec_mode(self, interaction: discord.Interaction, status: bool):
-        checked = await self.check_botdev(interaction)
+        checked = await self.bot.check_botdev(interaction)
         if not checked: return
 
         if self.manager.get_seance(interaction.user): self.manager.delete_seance(interaction.user)
@@ -166,7 +160,7 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="exec_mode_status")
     @GuardBot.error_handler
     async def exec_mode_status(self, interaction: discord.Interaction):
-        checked = await self.check_botdev(interaction)
+        checked = await self.bot.check_botdev(interaction)
         if not checked: return
 
         if self.manager.get_seance(interaction.user):
@@ -176,6 +170,49 @@ class BotToolCog(commands.Cog):
         else:
             await interaction.response.send_message(  # type: ignore
                 "⏹️ Now execution - off"
+            )
+
+    @app_commands.command(name="reload_cogs")
+    @GuardBot.error_handler
+    async def reload_cogs(self, interaction: discord.Interaction):
+        checked = await self.bot.check_botdev(interaction)
+        if not checked: return
+
+        await interaction.response.send_message(  # type: ignore
+            "🔁 Cogs reloading started"
+        )
+
+        await self.bot.re_load_cogs()
+
+    @app_commands.command(name="exec_script")
+    @GuardBot.error_handler
+    async def exec_script(
+            self, interaction: discord.Interaction,
+            script_name: str,
+            from_db: bool = False,
+            kwargs: str = ""
+    ):
+        try:
+            ret = await self.bot.script_eng.execute(
+                script_name, interaction.guild_id if from_db else None,
+                interaction=interaction,
+                **json.loads('{' + kwargs + '}')
+            )
+            await interaction.response.send_message(  # type: ignore
+                "Result:\n"
+                "```\n"
+                f"{pformat(ret)}"
+                "```\n"
+            )
+        except Exception as e:
+            logger.exception("Error in script execution command")
+            await interaction.response.send_message(  # type: ignore
+                f"Критичная ошибка при выполнении: {e}"
+            )
+        except RuntimeWarning as e:
+            logger.exception("RuntimeWarning in script execution command")
+            await interaction.response.send_message(  # type: ignore
+                f"Ошибка при выполнении: {e}"
             )
 
     @commands.Cog.listener()
