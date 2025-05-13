@@ -92,8 +92,11 @@ class BotToolCog(commands.Cog):
             self, interaction: discord.Interaction,
             from_db: bool = False
     ):
-        checked = await self.bot.check_botdev(interaction)
-        if not checked: return
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
 
         try:
             logger.debug("Scripts reloading")
@@ -123,8 +126,11 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="close_bot")
     @GuardBot.error_handler
     async def close_bot(self, interaction: discord.Interaction):
-        checked = await self.bot.check_botdev(interaction)
-        if not checked: return
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
 
         await interaction.channel.send(
             "💤 Try to stop bot working"
@@ -142,8 +148,11 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="exec_mode")
     @GuardBot.error_handler
     async def exec_mode(self, interaction: discord.Interaction, status: bool):
-        checked = await self.bot.check_botdev(interaction)
-        if not checked: return
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
 
         if self.manager.get_seance(interaction.user): self.manager.delete_seance(interaction.user)
 
@@ -160,8 +169,11 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="exec_mode_status")
     @GuardBot.error_handler
     async def exec_mode_status(self, interaction: discord.Interaction):
-        checked = await self.bot.check_botdev(interaction)
-        if not checked: return
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
 
         if self.manager.get_seance(interaction.user):
             await interaction.response.send_message(  # type: ignore
@@ -175,8 +187,11 @@ class BotToolCog(commands.Cog):
     @app_commands.command(name="reload_cogs")
     @GuardBot.error_handler
     async def reload_cogs(self, interaction: discord.Interaction):
-        checked = await self.bot.check_botdev(interaction)
-        if not checked: return
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
 
         await interaction.response.send_message(  # type: ignore
             "🔁 Cogs reloading started"

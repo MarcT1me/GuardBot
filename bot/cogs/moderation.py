@@ -163,13 +163,32 @@ class ModerationCog(commands.Cog):
             channel: discord.TextChannel,
             reason: str | None = None
     ):
-
         """Создать текстовый канал"""
         await channel.delete(
             reason=GuardBot.normalized_reason(interaction.user, reason)
         )
         await interaction.response.send_message(  # type: ignore
             GuardBot.normalize_response(f"✅ Канал `{channel.name}` удалён", reason)
+        )
+
+    @app_commands.command(name="kick", description="Выгоняет участника")
+    @GuardBot.error_handler
+    @GuardBot.has_permission(administration=True)
+    async def kick(
+            self, interaction: discord.Interaction,
+            member: discord.TextChannel,
+            reason: str | None = None
+    ):
+        """Создать текстовый канал"""
+        await member.guild.kick(
+            member,
+            reason=GuardBot.normalized_reason(interaction.user, reason)
+        )
+        await interaction.response.send_message(  # type: ignore
+            GuardBot.normalize_response(
+                f"Участник {member.name} изгнан с сервера",
+                reason
+            )
         )
 
 

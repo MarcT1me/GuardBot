@@ -54,13 +54,6 @@ class BaseScript(ABC):
 
     def create_safe_context(self, context: dict) -> dict:
         context["bot"] = self.engine.bot
-        # safe_context = {
-        #     "bot": self.engine.bot,
-        # }
-        # if "member" in context:
-        #     safe_context["member"] = Member.from_discord(context["member"])
-        # if "msg" in context:
-        #     safe_context["msg"] = Message.from_discord(context["msg"])
 
         return context
 
@@ -224,9 +217,15 @@ class ScriptEngine(commands.Cog):
         script = script_type.compile(content, self)
         return {name: script}
 
+    async def get_script(self, guild_id: int, name: str) -> BaseScript:
+        script = self.scripts[guild_id].get(name)
+        if not script:
+            script = self.scripts[None].get(name)
+        return script
+
     async def execute(self, name: str, guild_id: int | None, **context) -> Any:
         """Запуск скрипта по имени"""
-        if script := self.scripts[guild_id].get(name):
+        if script := await self.get_script(guild_id, name):
             try:
                 return await script.execute(context)
             except Exception as e:

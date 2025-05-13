@@ -18,12 +18,12 @@ class PermissionCheckError(Exception):
 
 
 class GuardBot(commands.Bot):
-    _instance = None
+    instance: 'GuardBot' = None
 
     def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        if not cls.instance:
+            cls.instance = super().__new__(cls)
+        return cls.instance
 
     def __init__(self, database: GuardDatabase):
         intents = discord.Intents.default()
@@ -54,27 +54,27 @@ class GuardBot(commands.Bot):
             except PermissionCheckError as e:
                 missing = [perm.replace('_', ' ').title() for perm in e.missing]
                 target = "боту" if e.target == "bot" else "вам"
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(
                     f"❌ {target.capitalize()} не хватает прав: {', '.join(missing)}",
                     ephemeral=True
                 )
                 logger.exception(f"{e}")
             except discord.app_commands.MissingPermissions as e:
                 missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(
                     f"❌` Вам не хватает прав. ||{', '.join(missing)}||",
                     ephemeral=True
                 )
                 logger.exception(f"{e}")
             except discord.app_commands.BotMissingPermissions as e:
                 missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(
                     f"❌` Боту не хватает прав. ||{', '.join(missing)}||",
                     ephemeral=True
                 )
                 logger.exception(f"{e}")
             except discord.Forbidden as e:
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(
                     f"❌ Ошибка доступа. ||{e.text}||",
                     ephemeral=True
                 )
@@ -87,13 +87,13 @@ class GuardBot(commands.Bot):
                     500: "Внутренняя ошибка сервера Discord"
                 }.get(e.status, f"Ошибка API {e.text}")
 
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(
                     f"❌ Ошибка запроса. ||{error_msg}||",
                     ephemeral=True
                 )
                 logger.exception(f"{e}")
             except Exception as e:
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(
                     f"❌ Неизвестная ошибка: {str(e)}",
                     ephemeral=True
                 )
@@ -134,13 +134,12 @@ class GuardBot(commands.Bot):
 
     async def check_botdev(self, interaction: discord.Interaction) -> bool:
         # Используем await и новый метод из GuardDatabase
-        ret = await self.db.get_botdevuser(user_id=interaction.user.id)
-        if ret:
+        if interaction.user.id == 805395077496832011: return True
+
+        user = await self.db.get_user(user_id=interaction.user.id)
+        if "botdev" in user.types:
             return True
         else:
-            await interaction.response.send_message(  # type: ignore
-                "GET OF FUCK OUT!!! 🤬🤬🤬"
-            )
             return False
 
     @property
@@ -159,7 +158,7 @@ class GuardBot(commands.Bot):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        logger.success(f"✅ Бот {self.user} готов к работе!")
+        logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
 
     async def _load_cogs(self) -> None:
         """Загрузка всех когов из папки cogs"""
