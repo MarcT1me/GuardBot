@@ -20,6 +20,8 @@ class PermissionCheckError(Exception):
 class GuardBot(commands.Bot):
     instance: 'GuardBot' = None
 
+    bot_dev_users = [864811730337267734, 805395077496832011, 957269545326891028]
+
     def __new__(cls, *args, **kwargs):
         if not cls.instance:
             cls.instance = super().__new__(cls)
@@ -37,69 +39,80 @@ class GuardBot(commands.Bot):
         self.db = database
 
     @staticmethod
-    def normalize_response(response: str, reason: str) -> str:
+    def normalize_response_reason(response: str, reason: str) -> str:
         return response + "\nПричина: " + reason if reason else ""
+
+    @staticmethod
+    def normalize_response_size(response: str, size=2000, end="\n...") -> str:
+        if len(response) >= size:
+            return response[:size - len(end) - 1] + end
+        return response
 
     @staticmethod
     def normalized_reason(user: discord.User, reason: str | None) -> str:
         return f"{user.name}: {reason if reason else 'unspecified'}"
 
     @staticmethod
-    def error_handler(func):
-        @wraps(func)
-        async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
-            try:
-                return await func(self, interaction, *args, **kwargs)
+    def error_handler(is_defer: bool = False):
+        def decorator(func):
+            @wraps(func)
+            async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
+                response = interaction.followup.send if is_defer else interaction.response.send_message  # type: ignore
 
-            except PermissionCheckError as e:
-                missing = [perm.replace('_', ' ').title() for perm in e.missing]
-                target = "боту" if e.target == "bot" else "вам"
-                await interaction.followup.send(
-                    f"❌ {target.capitalize()} не хватает прав: {', '.join(missing)}",
-                    ephemeral=True
-                )
-                logger.exception(f"{e}")
-            except discord.app_commands.MissingPermissions as e:
-                missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
-                await interaction.followup.send(
-                    f"❌` Вам не хватает прав. ||{', '.join(missing)}||",
-                    ephemeral=True
-                )
-                logger.exception(f"{e}")
-            except discord.app_commands.BotMissingPermissions as e:
-                missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
-                await interaction.followup.send(
-                    f"❌` Боту не хватает прав. ||{', '.join(missing)}||",
-                    ephemeral=True
-                )
-                logger.exception(f"{e}")
-            except discord.Forbidden as e:
-                await interaction.followup.send(
-                    f"❌ Ошибка доступа. ||{e.text}||",
-                    ephemeral=True
-                )
-                logger.exception(f"{e}")
-            except discord.HTTPException as e:
-                error_msg = {
-                    400: "Некорректные параметры",
-                    404: "Сущность не найдена",
-                    429: "Слишком много запросов",
-                    500: "Внутренняя ошибка сервера Discord"
-                }.get(e.status, f"Ошибка API {e.text}")
+                try:
+                    return await func(self, interaction, *args, **kwargs)
 
-                await interaction.followup.send(
-                    f"❌ Ошибка запроса. ||{error_msg}||",
-                    ephemeral=True
-                )
-                logger.exception(f"{e}")
-            except Exception as e:
-                await interaction.followup.send(
-                    f"❌ Неизвестная ошибка: {str(e)}",
-                    ephemeral=True
-                )
-                logger.exception(f"{e}")
+                except PermissionCheckError as e:
+                    missing = [perm.replace('_', ' ').title() for perm in e.missing]
+                    target = "боту" if e.target == "bot" else "вам"
+                    await response(
+                        f"❌ {target.capitalize()} не хватает прав: {', '.join(missing)}",
+                        ephemeral=True
+                    )
+                    logger.exception(f"{e}")
+                except discord.app_commands.MissingPermissions as e:
+                    missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
+                    await response(  # type: ignore
+                        f"❌` Вам не хватает прав. ||{', '.join(missing)}||",
+                        ephemeral=True
+                    )
+                    logger.exception(f"{e}")
+                except discord.app_commands.BotMissingPermissions as e:
+                    missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
+                    await response(  # type: ignore
+                        f"❌` Боту не хватает прав. ||{', '.join(missing)}||",
+                        ephemeral=True
+                    )
+                    logger.exception(f"{e}")
+                except discord.Forbidden as e:
+                    await response(  # type: ignore
+                        f"❌ Ошибка доступа. ||{e.text}||",
+                        ephemeral=True
+                    )
+                    logger.exception(f"{e}")
+                except discord.HTTPException as e:
+                    error_msg = {
+                        400: "Некорректные параметры",
+                        404: "Сущность не найдена",
+                        429: "Слишком много запросов",
+                        500: "Внутренняя ошибка сервера Discord"
+                    }.get(e.status, f"Ошибка API {e.text}")
 
-        return wrapper
+                    await response(  # type: ignore
+                        f"❌ Ошибка запроса. ||{error_msg}||",
+                        ephemeral=True
+                    )
+                    logger.exception(f"{e}")
+                except Exception as e:
+                    await response(  # type: ignore
+                        f"❌ Неизвестная ошибка: {str(e)}",
+                        ephemeral=True
+                    )
+                    logger.exception(f"{e}")
+
+            return wrapper
+
+        return decorator
 
     @staticmethod
     def has_permission(**permissions):
@@ -136,8 +149,8 @@ class GuardBot(commands.Bot):
         # Используем await и новый метод из GuardDatabase
         if interaction.user.id == 805395077496832011: return True
 
-        user = await self.db.get_user(user_id=interaction.user.id)
-        if "botdev" in user.types:
+        user = await self.db.get_user(server=self.db.get_server(interaction.guild_id), user_id=interaction.user.id)
+        if "botdev" in user.types and user.id in self.bot_dev_users:
             return True
         else:
             return False
@@ -145,6 +158,10 @@ class GuardBot(commands.Bot):
     @property
     def script_eng(self) -> 'bot.cogs.script_engine.ScriptEngine':
         return self.cogs.get("ScriptEngine")
+
+    @property
+    def event_cog(self) -> 'bot.cogs.events.EventCog':
+        return self.cogs.get("EventCog")
 
     @property
     def voice_cog(self) -> 'bot.cogs.voice.VoiceCog':

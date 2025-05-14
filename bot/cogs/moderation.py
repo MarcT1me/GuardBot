@@ -39,7 +39,7 @@ class ModerationCog(commands.Cog):
         return name.strip().lower().replace(' ', '-')[:100]
 
     @app_commands.command(name="add_role", description="Выдаёт участнику роль")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(manage_roles=True)
     async def add_role(
             self, interaction: discord.Interaction,
@@ -58,7 +58,7 @@ class ModerationCog(commands.Cog):
                 reason=normalized_reason
             )
             await interaction.response.send_message(  # type: ignore
-                GuardBot.normalize_response(f"Роль {role.mention} выдана {member.mention}", reason),
+                GuardBot.normalize_response_reason(f"Роль {role.mention} выдана {member.mention}", reason),
                 allowed_mentions=discord.AllowedMentions(users=True, roles=False)
             )
         else:
@@ -68,7 +68,7 @@ class ModerationCog(commands.Cog):
             )
 
     @app_commands.command(name="del_role", description="Убирает у участника роль")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(manage_roles=True)
     async def del_role(
             self, interaction: discord.Interaction,
@@ -87,7 +87,7 @@ class ModerationCog(commands.Cog):
                 reason=normalized_reason
             )
             await interaction.response.send_message(  # type: ignore
-                GuardBot.normalize_response(f"Роль {role.mention} убрана с участника {member.mention}", reason),
+                GuardBot.normalize_response_reason(f"Роль {role.mention} убрана с участника {member.mention}", reason),
                 allowed_mentions=discord.AllowedMentions(users=True, roles=False)
             )
         else:
@@ -97,7 +97,7 @@ class ModerationCog(commands.Cog):
             )
 
     @app_commands.command(name="create_channel", description="Создаёт канал указанного типа")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(manage_channels=True)
     async def create_channel(
             self, interaction: discord.Interaction,
@@ -152,11 +152,11 @@ class ModerationCog(commands.Cog):
 
         # Формирование ответа
         await interaction.response.send_message(  # type: ignore
-            GuardBot.normalize_response(f"✅ Канал {new_channel.mention} создан", reason)
+            GuardBot.normalize_response_reason(f"✅ Канал {new_channel.mention} создан", reason)
         )
 
     @app_commands.command(name="delete_channel", description="Удаляет текстовый канал")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(manage_channels=True)
     async def delete_channel(
             self, interaction: discord.Interaction,
@@ -168,15 +168,15 @@ class ModerationCog(commands.Cog):
             reason=GuardBot.normalized_reason(interaction.user, reason)
         )
         await interaction.response.send_message(  # type: ignore
-            GuardBot.normalize_response(f"✅ Канал `{channel.name}` удалён", reason)
+            GuardBot.normalize_response_reason(f"✅ Канал `{channel.name}` удалён", reason)
         )
 
     @app_commands.command(name="kick", description="Выгоняет участника")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(administration=True)
     async def kick(
             self, interaction: discord.Interaction,
-            member: discord.TextChannel,
+            member: discord.Member,
             reason: str | None = None
     ):
         """Создать текстовый канал"""
@@ -185,7 +185,7 @@ class ModerationCog(commands.Cog):
             reason=GuardBot.normalized_reason(interaction.user, reason)
         )
         await interaction.response.send_message(  # type: ignore
-            GuardBot.normalize_response(
+            GuardBot.normalize_response_reason(
                 f"Участник {member.name} изгнан с сервера",
                 reason
             )

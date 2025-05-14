@@ -58,19 +58,27 @@ class GuardDatabase(Database):
         return server
 
     @classmethod
-    async def get_user(cls, user_id: int) -> User | None:
-        return await User.get_or_none(id=user_id)
+    async def get_user(cls, server: Server, user_id: int) -> User | None:
+        return await User.get_or_none(server=server, user_id=user_id)
 
     @classmethod
     async def save_botdevuser(cls, server_id: int,
                               user_id: int, user_name: str, user_types: str = "") -> User:
-        user = await cls.get_user(user_id)
-        if user: user_types += "\\" + user.types
+        if db_user := await cls.get_user(
+                server=await cls.get_server(server_id),
+                user_id=user_id
+        ):
+            db_user.types += "\\botdev" + user_types
+            await db_user.save()
+            return db_user
+
         user = await cls.save_user(
             server_id=server_id,
             user_id=user_id,
-            user_types=user_types + "\\" + "botdev",
+
             user_name=user_name,
+
+            user_types="botdev\\" + user_types
         )
         return user
 
@@ -79,7 +87,7 @@ class GuardDatabase(Database):
                         user_id: int, user_name: str, user_types: str = "",
                         **additions) -> User:
         user, _ = await User.update_or_create(
-            id=user_id,
+            user_id=user_id,
             server=await cls.get_server(server_id),
 
             name=user_name,
@@ -90,6 +98,10 @@ class GuardDatabase(Database):
             },
         )
         return user
+
+    @classmethod
+    async def remove_user(cls, server: Server, user_id: int):
+        return User.filter(server=server, user_id=user_id).delete()
 
     @classmethod
     async def get_script(cls, server: Server, script_type, script_name: str) -> Script:

@@ -12,6 +12,7 @@ class Server(Model):
 
 class User(Model):
     id = fields.BigIntField(pk=True)
+    user_id = fields.BigIntField()
     server = fields.ForeignKeyField('models.Server', related_name='server_users')
 
     types = fields.TextField(default="")
@@ -21,6 +22,11 @@ class User(Model):
     scripts = fields.JSONField(default={})
 
     additions = fields.JSONField(default={})  # any data
+
+    class Meta:
+        unique_together = (
+            ("server", "user_id"),
+        )
 
 
 class Script(Model):

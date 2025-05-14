@@ -2,7 +2,6 @@ from typing import Any, Type, Callable
 from abc import ABC, abstractmethod
 from pathlib import Path
 import math
-import ast
 import asyncio
 
 from discord.ext import commands
@@ -16,11 +15,25 @@ from bot.database import GuardDatabase
 
 class BaseScript(ABC):
     """Абстрактный базовый класс для скриптов"""
+    lang = None
 
-    def __init__(self, engine: 'ScriptEngine', code_env: dict | object):
+    def __init__(self, engine: 'ScriptEngine'):
         self.engine: ScriptEngine = engine
-        self.code_env: dict | object = code_env
-        self.main_func = self._get_main_func()
+
+        self.code_env: dict | object = None
+        if self.lang == "py":
+            self.code_env = dict()
+        elif self.lang == "lua":
+            self.code_env = self.engine.lua_runtime.table()
+
+        for name, value in {
+            "__guild_id__": 0,
+            "include": self.include,
+            "logger": logger,
+            "calculate": self.safe_calculate,
+        }.items(): self[name] = value
+
+        self.main_func: Callable = None
 
     def __getitem__(self, item: str) -> Any:
         try:
@@ -30,9 +43,18 @@ class BaseScript(ABC):
         except Exception as e:
             raise AttributeError(f"Cant find item in script env: {str(e)}")
 
-    def _get_main_func(self) -> Callable:
+    def __setitem__(self, item: str, value: Any) -> None:
         try:
-            return self["main"]
+            if isinstance(self.code_env, dict):
+                self.code_env[item] = value
+                return
+            setattr(self.code_env, item, value)
+        except Exception as e:
+            raise AttributeError(f"Cant find item in script env: {str(e)}")
+
+    def _update_main_func(self) -> Callable:
+        try:
+            self.main_func = self["main"]
         except AttributeError as e:
             raise AttributeError(f"Code not implement enter point: {str(e)}")
 
@@ -52,30 +74,30 @@ class BaseScript(ABC):
         except Exception as e:
             raise ValueError(f"Calculation Error: {str(e)}")
 
+    def include(self, script_name: str, as_name: str = None):
+        include_script = self.engine.get_script(self["__guild_id__"], self.code_env)
+        if as_name is None: as_name = script_name
+        self[as_name] = include_script
+
     def create_safe_context(self, context: dict) -> dict:
         context["bot"] = self.engine.bot
-
         return context
 
-    @classmethod
     @abstractmethod
-    def compile(cls, content: str, engine: 'ScriptEngine') -> 'BaseScript':
+    def compile(self, content: str) -> 'BaseScript':
         pass
 
     @abstractmethod
-    async def execute(self, context: dict) -> Any:
-        pass
+    async def execute(self, guild_id: int, context: dict) -> Any:
+        self["__guild_id__"] = guild_id
 
 
 class LuaScript(BaseScript):
     """Обработчик Lua-скриптов"""
+    lang = "lua"
 
-    @classmethod
-    def compile(cls, content: str, engine: 'ScriptEngine') -> 'LuaScript':
-        lua_env = engine.lua_runtime.table()
-        lua_env.calculate = cls.safe_calculate
-
-        loader = engine.lua_runtime.eval('''
+    def compile(self, content: str) -> 'LuaScript':
+        loader = self.engine.lua_runtime.eval('''
             function(env, code)
                 local chunk, err = load(code, nil, 't', env)
                 if not chunk then return nil, err end
@@ -83,13 +105,15 @@ class LuaScript(BaseScript):
             end
         ''')
 
-        success, result = loader(lua_env, content)
+        success, result = loader(self.code_env, content)
         if not success:
             raise RuntimeError(f"Lua error: {result}")
 
-        return cls(engine, lua_env)
+        self._update_main_func()
+        return self
 
-    async def execute(self, context: dict) -> Any:
+    async def execute(self, guild_id: int, context: dict) -> Any:
+        await super().execute(guild_id, context)
         return await asyncio.to_thread(
             self.main_func,
             **self.create_safe_context(context)
@@ -98,30 +122,16 @@ class LuaScript(BaseScript):
 
 class PythonScript(BaseScript):
     """Обработчик Python-скриптов"""
+    lang = "py"
 
-    @staticmethod
-    def _validate_syntax(code: str) -> None:
-        """AST-валидация кода"""
-        for node in ast.walk(ast.parse(code)):
-            if isinstance(node, ast.ImportFrom):
-                if node.module == 'bot.script_deps' and not any(name.name == '*' for name in node.names):
-                    continue
-                raise SyntaxError(f"Недопустимый импорт: {node.module}")
-            elif isinstance(node, ast.Import):
-                raise SyntaxError("Прямые импорты запрещены")
-            elif isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name) and node.func.id == 'print':
-                    raise SyntaxError("Использование print запрещено")
+    def compile(self, content: str) -> 'PythonScript':
+        exec(content, self.code_env)
 
-    @classmethod
-    def compile(cls, content: str, engine: 'ScriptEngine') -> 'PythonScript':
-        py_env = {
-            "calculate": cls.safe_calculate
-        }
-        exec(content, py_env)
-        return cls(engine, py_env)
+        self._update_main_func()
+        return self
 
-    async def execute(self, context: dict) -> Any:
+    async def execute(self, guild_id: int, context: dict) -> Any:
+        await super().execute(guild_id, context)
         return await self.main_func(**self.create_safe_context(context))
 
 
@@ -133,7 +143,7 @@ class ScriptEngine(commands.Cog):
             lua_runtime: lupa.LuaRuntime = lupa.LuaRuntime(),
             script_timeout: int = 30
     ):
-        self.bot = bot
+        self.bot: GuardBot = bot
         self.scripts_dir = scripts_dir
         self.lua_runtime = lua_runtime
 
@@ -156,6 +166,19 @@ class ScriptEngine(commands.Cog):
         logger.debug("Loading scripts")
         await self.load_scripts_from_dir()
         await self.load_scripts_from_db()
+        await self.guilds_on_ready()
+
+    async def guilds_on_ready(self):
+        logger.info("setup on_ready.data for guilds\n")
+
+        for guild in self.bot.guilds:
+            script_name, guild_id = await self.bot.event_cog.get_event_script_name(None, "on_ready")
+            await self.bot.script_eng.execute(
+                script_name,
+                None,
+                guild=guild
+            )
+            logger.success(f"`{guild}` data ready\n")
 
     async def load_scripts_from_db(self) -> list:
         scripts = await GuardDatabase.script.filter(is_active=True)
@@ -201,7 +224,7 @@ class ScriptEngine(commands.Cog):
 
                     logger.success(f"Script loaded: {script_path.stem}")
                 except Exception as e:
-                    logger.error(f"Failed to load {script_path.name}: {e}")
+                    logger.exception(f"Failed to load {script_path.name}: {e}")
                     load_errors.append(
                         (e, f"Failed to load {script_path.name}: {e}")
                     )
@@ -214,23 +237,26 @@ class ScriptEngine(commands.Cog):
             content: str
     ) -> dict:
         """Компиляция отдельного скрипта"""
-        script = script_type.compile(content, self)
+        script = script_type(self).compile(content)
         return {name: script}
 
     async def get_script(self, guild_id: int, name: str) -> BaseScript:
-        script = self.scripts[guild_id].get(name)
-        if not script:
-            script = self.scripts[None].get(name)
+        script_field = self.scripts.get(guild_id)
+        if not script_field: return None
+
+        script = script_field.get(name)
+        if not script: script = self.scripts[None].get(name)
         return script
 
     async def execute(self, name: str, guild_id: int | None, **context) -> Any:
         """Запуск скрипта по имени"""
         if script := await self.get_script(guild_id, name):
             try:
-                return await script.execute(context)
+                return await script.execute(guild_id, context)
             except Exception as e:
                 logger.exception(f"Script error in {name}: {e}")
                 raise
+        logger.error(f"Script {name} not found")
         return None
 
 

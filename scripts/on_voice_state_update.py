@@ -51,7 +51,7 @@ async def main(*, bot: GuardBot, member: discord.Member,
             parent_channel = after.channel
 
             temp_channel = await guild.create_voice_channel(
-                name=f"{member.name}\'s room",
+                name=f"⏳ {member.name}\'s room",
                 category=parent_channel.category,
                 reason=f"{parent_channel.name} child auto-creating"
             )
@@ -81,7 +81,6 @@ async def main(*, bot: GuardBot, member: discord.Member,
                     f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
                     allowed_mentions=discord.AllowedMentions(users=False, roles=False)
                 )
-
             logger.success("Temp voice created")
 
     if before.channel:

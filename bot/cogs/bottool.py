@@ -26,7 +26,6 @@ class ExecutorSeance:
 
     def clear_env(self) -> None:
         self.env = {
-            "logger": logger,
             "response": self.response,
             "flush_response": self.flush_response,
             "__std_send_response_message__": ""
@@ -44,13 +43,15 @@ class ExecutorSeance:
         )
         self.clear_response()
 
-    async def execute(self, code, **context) -> any:
+    async def execute(self, code, guild_id: int, **context) -> any:
         script = PythonScript.compile(code, self.bot.script_eng)
         try:
             script.code_env.update(**self.env)
-            ret = await script.execute(context)
+
+            ret = await script.execute(guild_id, context)
             self.expand_env(**script.code_env)
-            self.env["__std_send_response_message__"] = ""
+
+            self.clear_response()
             return ret
         except Exception as e:
             return e
@@ -87,7 +88,7 @@ class BotToolCog(commands.Cog):
         self.manager = ExecutorManager(bot)
 
     @app_commands.command(name="update_scripts")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def update_scripts(
             self, interaction: discord.Interaction,
             from_db: bool = False
@@ -124,7 +125,7 @@ class BotToolCog(commands.Cog):
             raise
 
     @app_commands.command(name="close_bot")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def close_bot(self, interaction: discord.Interaction):
         passed = await self.bot.check_botdev(interaction)
         if not passed:
@@ -146,7 +147,7 @@ class BotToolCog(commands.Cog):
             pass
 
     @app_commands.command(name="exec_mode")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def exec_mode(self, interaction: discord.Interaction, status: bool):
         passed = await self.bot.check_botdev(interaction)
         if not passed:
@@ -167,7 +168,7 @@ class BotToolCog(commands.Cog):
             )
 
     @app_commands.command(name="exec_mode_status")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def exec_mode_status(self, interaction: discord.Interaction):
         passed = await self.bot.check_botdev(interaction)
         if not passed:
@@ -185,7 +186,7 @@ class BotToolCog(commands.Cog):
             )
 
     @app_commands.command(name="reload_cogs")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def reload_cogs(self, interaction: discord.Interaction):
         passed = await self.bot.check_botdev(interaction)
         if not passed:
@@ -200,7 +201,7 @@ class BotToolCog(commands.Cog):
         await self.bot.re_load_cogs()
 
     @app_commands.command(name="exec_script")
-    @GuardBot.error_handler
+    @GuardBot.error_handler(is_defer=True)
     async def exec_script(
             self, interaction: discord.Interaction,
             script_name: str,
@@ -216,19 +217,19 @@ class BotToolCog(commands.Cog):
             await interaction.response.send_message(  # type: ignore
                 "Result:\n"
                 "```\n"
-                f"{pformat(ret)}"
+                f"{pformat(ret)}\n"
                 "```\n"
             )
         except Exception as e:
-            logger.exception("Error in script execution command")
             await interaction.response.send_message(  # type: ignore
                 f"Критичная ошибка при выполнении: {e}"
             )
+            raise
         except RuntimeWarning as e:
-            logger.exception("RuntimeWarning in script execution command")
             await interaction.response.send_message(  # type: ignore
                 f"Ошибка при выполнении: {e}"
             )
+            raise
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
@@ -247,18 +248,23 @@ class BotToolCog(commands.Cog):
                     )
                     result = await seance.execute(
                         code,
+                        msg.guild.id,
                         msg=msg
                     )
 
+                    response = (
+                            (
+                                "Error:\n"
+                                if isinstance(result, Exception) else
+                                "Result:\n"
+                            ) +
+                            "```python\n"
+                            f"{pformat(result)}\n"
+                            "```"
+                    )
+
                     await msg.channel.send(
-                        (
-                            "Error:\n"
-                            if isinstance(result, Exception) else
-                            "Result:\n"
-                        ) +
-                        "```python\n"
-                        f"{pformat(result)}\n"
-                        "```"
+                        GuardBot.normalize_response_size(response, end="\n```")
                     )
                 except Exception as e:
                     logger.exception("Error in script")

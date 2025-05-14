@@ -4,7 +4,7 @@ from bot import GuardBot
 
 
 async def main(*, bot: GuardBot, interaction: discord.Interaction):
-    guild_id=interaction.guild_id
+    guild_id = interaction.guild_id
 
     await bot.db.save_botdevuser(
         guild_id,

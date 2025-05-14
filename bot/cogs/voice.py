@@ -1,122 +1,181 @@
-from functools import partial
+from threading import Thread
 from typing import Optional
 import os
 import asyncio
-from pprint import pformat
 
 import discord
 from discord import FFmpegOpusAudio
 from discord import app_commands
 from discord.ext import commands
 
-from yt_dlp import YoutubeDL, DownloadError
+from yt_dlp import YoutubeDL
 
 from loguru import logger
 
 from bot.bot import GuardBot
 
 
-class TrackSource:
-    ydl_opts = {
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                      'AppleWebKit/537.36 (KHTML, like Gecko) '
-                      'Chrome/91.0.4472.124 Safari/537.36',
-        'referer': 'https://www.youtube.com/',
-        'headers': {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-        },
+class BaseTrack:
+    _COOKIES_PROFILE = ('chrome', 'GuardBot')
+    _COMMON_HEADERS = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Fetch-Mode': 'navigate',
+        'Connection': 'keep-alive',
+    }
+    _BASE_YD_OPTS = {
+        'cookies_from_browser': _COOKIES_PROFILE,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'socket_timeout': 30,
+        'retries': 20,
+        'fragment_retries': 20,
+        'ignoreerrors': True,
+        'noplaylist': True,
+        'http_headers': _COMMON_HEADERS,
         'extractor_args': {
             'youtube': {
-                'skip': [
-                    'authcheck'
-                ]
+                'skip': ['authcheck'],
+                'player_client': ['android', 'web']
             }
-        },
-
-        # search settings
-        'format': 'bestaudio/best',
-        'default_search': 'auto',
-        'source_address': '0.0.0.0',
-        'noplaylist': True,  # not allow playlists
-        'quiet': True,  # quiet
-
-        # connect
-        'socket_timeout': 30,  # connection timeout
-        'retries': 2,  # 2 attempts after error
-
-        # file saving settings
-        'outtmpl': 'bot_downloads_cache/%(title)s.%(ext)s',  # cache folder
-        'restrictfilenames': True,  # remove not allow characters
-        'final_ext': 'opus',
-
-        # other
-        'postprocessors': [
-            {
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'opus',
-                'preferredquality': '192',
-            }
-        ],
-        'verbose': False,
-        'no_warnings': True,
-        'cookiefile': 'cookies.txt',
+        }
     }
+    filename = False
+    loading = False
 
     def __init__(self, url: str):
-        self.url: str = url
-        with YoutubeDL(self.ydl_opts) as ydl:
-            self.info: dict = ydl.extract_info(self.url, download=False)
+        self.url = url
 
-        logger.info(f"track info:\n{pformat(self.info)}")
-
-        self.filename: Optional[str] = None
+        self.info: dict = None
         self.source: Optional[FFmpegOpusAudio] = None
+
+        self._initialize()
+
+    def _initialize(self):
+        raise NotImplementedError
 
     @property
     def title(self) -> str:
-        return self.info["title"]
+        return self.info.get("title", "Unknown Title")
 
     @property
     def author(self) -> str:
-        return self.info["channel"]
+        return self.info.get("channel", "Unknown Author")
 
     @property
     def beautiful_title(self) -> str:
-        return self.author + " - " + self.title
+        return f"{self.author} - {self.title}"
 
-    @property
-    def beautiful_data(self) -> tuple[str]:
-        return (
-            self.beautiful_title,
-            self.info["like_count"],
-            self.info["view_count"],
-            self.info["comment_count"],
-            self.info["timestamp"],
-            self.info["uploaded_date"],
+    def cleanup(self) -> None:
+        if self.source:
+            try:
+                self.source.cleanup()
+                logger.debug(f"Cleaned up audio source: {self.title}")
+            except Exception as e:
+                logger.error(f"Error cleaning source: {str(e)}")
+            finally:
+                self.source = None
+
+
+class TrackStream(BaseTrack):
+    def _initialize(self):
+        ydl_opts = {
+            **self._BASE_YD_OPTS,
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'opus',
+            }],
+            'verbose': True
+        }
+
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                self.info = ydl.extract_info(self.url, download=False)
+                self.source_url = self.info['url']
+                self.source = self._create_audio_source()
+        except Exception as e:
+            logger.error(f"Stream initialization failed: {str(e)}")
+            raise
+
+    def _create_audio_source(self):
+        return FFmpegOpusAudio(
+            self.source_url,
+            before_options=[
+                '-reconnect 10',
+                '-reconnect_streamed 10',
+                '-reconnect_delay_max 25',
+                '-headers', '\r\n'.join(f'{k}: {v}' for k, v in self._COMMON_HEADERS.items())
+            ],
+            options=['-vn -b:a 192k']
         )
 
-    async def create_source(self) -> None:
-        if not self.filename:
-            await self._async_thread_download_audio()
-        self.source = FFmpegOpusAudio(self.filename)
 
-    async def download_audio(self) -> None:
-        if self.filename:
+class TrackSource(BaseTrack):
+    _download_thread: Optional[Thread]
+
+    def _initialize(self):
+        self.ydl_opts = {
+            **self._BASE_YD_OPTS,
+            'outtmpl': 'bot_downloads_cache/%(title)s.%(ext)s',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'opus',
+                'preferredquality': '192',
+            }],
+            'restrictfilenames': True,
+            'verbose': False,
+            'cookiefile': 'cookies.txt'
+        }
+
+        self._download_thread: Optional[Thread] = None
+        self.filename: Optional[str] = None
+
+        try:
+            with YoutubeDL(self.ydl_opts) as ydl:
+                self.info = ydl.extract_info(self.url, download=False)
+                if not self.info:
+                    raise RuntimeError("Failed to extract track info")
+        except Exception as e:
+            logger.error(f"TrackSource init failed: {str(e)}")
+            raise
+
+    def create_source(self) -> None:
+        if not self.filename:
+            self._download_audio()
+
+        try:
+            self.source = FFmpegOpusAudio(self.filename)
+        except Exception as e:
+            logger.error(f"Failed to create audio source: {str(e)}")
+            raise
+
+    def download_audio(self) -> None:
+        if self._download_thread and self._download_thread.is_alive():
+            logger.warning(f"Download already in progress for {self.beautiful_title}")
             return
 
-        await asyncio.to_thread(
-            partial(self._async_thread_download_audio)
-        )
+        if self.filename and os.path.exists(self.filename):
+            logger.debug(f"File already exists: {self.filename}")
+            return
 
-    async def _async_thread_download_audio(self) -> None:
+        self._download_thread = Thread(target=self._download_audio, daemon=True)
+        self._download_thread.start()
+
+    def _download_audio(self) -> None:
+        if self.loading: return
+
         try:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                partial(self._download_audio)
-            )
+            self.loading = True
+
+            with YoutubeDL(self.ydl_opts) as ydl:
+                self.info = ydl.extract_info(self.url, download=True)
+                self.filename = ydl.prepare_filename(self.info)
+                self.filename = os.path.splitext(self.filename)[0] + '.opus'
+
+            if os.path.getsize(self.filename) < 1024:  # Минимальный размер файла
+                raise ValueError("Invalid file size")
 
             logger.debug(
                 f" loaded:\n"
@@ -124,31 +183,26 @@ class TrackSource:
                 f"from file: {self.filename}"
             )
 
-            if not os.path.exists(self.filename):
+            if not self.filename or not os.path.exists(self.filename):
                 raise FileNotFoundError("File not be downloaded!")
-        except DownloadError as e:
-            logger.error(f"Loading error url: {self.url}: {e}")
+        except Exception as e:
+            logger.error(f"Download error: {str(e)}")
+            if self.filename and os.path.exists(self.filename):
+                os.remove(self.filename)
             raise
-        except:
-            logger.error(f"Loading error url: {self.url}")
-            raise
+        finally:
+            self.loading = False
 
-    def _download_audio(self) -> None:
-        with YoutubeDL(self.ydl_opts) as ydl:
-            self.info = ydl.extract_info(self.url, download=True)
-            self.filename = ydl.prepare_filename(self.info)
-            self.filename = os.path.splitext(self.filename)[0] + '.opus'
-
-    async def cleanup(self) -> None:
-        if self.source:
-            logger.debug(f"Deleting cache: {self.filename}")
-
-            self.source.cleanup()
-            self.source = None
-
-            os.remove(self.filename)
-            self.info = None
-            self.filename = None
+    def cleanup(self) -> None:
+        super().cleanup()
+        if self.filename and os.path.exists(self.filename):
+            try:
+                os.remove(self.filename)
+                logger.debug(f"Deleted file: {self.filename}")
+            except Exception as e:
+                logger.error(f"File deletion error: {str(e)}")
+            finally:
+                self.filename = None
 
 
 class VoiceState:
@@ -159,17 +213,20 @@ class VoiceState:
         self.current_track: Optional[TrackSource] = None
         self.queue: list[TrackSource] = []
 
+    async def update_voice_client(self, channel: discord.VoiceChannel | discord.StageChannel):
+        await self.connect_or_move(channel)
+
     @property
     def is_connected(self) -> bool:
-        return self._voice_client.is_connected()
+        return self._voice_client and self._voice_client.is_connected()
 
     @property
     def is_playing(self) -> bool:
-        return self._voice_client.is_playing()
+        return self._voice_client and self._voice_client.is_playing()
 
     @property
     def is_paused(self) -> bool:
-        return self._voice_client.is_paused()
+        return self._voice_client and self._voice_client.is_paused()
 
     @property
     def current_channel(self) -> discord.VoiceChannel | discord.StageChannel | None:
@@ -196,46 +253,80 @@ class VoiceState:
             self._voice_client = None
             self._current_channel = None
 
-    async def play(self, track: str) -> None:
+    async def play(self, track: str, interaction: discord.Interaction) -> None:
         if self._voice_client:
             await self.add_source(track, index=0)
-            await self.play_next()
+            await self.play_next(interaction)
 
-    async def add_source(self, track: TrackSource, index: int = None) -> None:
-        if len(self.queue) < 2:
-            await track.download_audio()
+    async def add_source(self, track: TrackSource | TrackStream, index: int = None) -> None:
+        if len(self.queue) < 2 and isinstance(track, TrackSource):
+            track.download_audio()
 
         if index:
             self.queue.insert(0, track)
         else:
             self.queue.append(track)
 
-    async def play_next(self):
-        if self.queue:
-            await self._set_next()
-            logger.info("play next track")
-            await self._play_current()
+    async def play_next(self, interaction):
+        if not self.queue:
+            logger.debug("Queue is empty")
+            return
+
+        logger.info("play next track")
+        await self._set_next()
+        await self._play_current(interaction)
 
     async def _set_next(self):
         if self.current_track:
             if self.is_playing:
                 await self.stop()
             else:
-                await self.current_track.cleanup()
+                self.current_track.cleanup()
 
-        for i in range(min(2, len(self.queue))):
-            await self.queue[i].download_audio()
-            logger.info(f"Download track: {self.queue[i].beautiful_title}")
+        for track in self.queue[:2]:
+            if isinstance(track, TrackSource) and not track.filename:
+                track.download_audio()
+                logger.info(f"Download track: {track.beautiful_title}")
 
-        next_track = self.queue.pop(0)
-        self.current_track = next_track
-        logger.info(f"set next track: {next_track.beautiful_title}")
+        if self.queue:
+            next_track = self.queue.pop(0)
+            self.current_track = next_track
+            logger.info(f"set next track: {next_track.beautiful_title}")
 
-    async def _play_current(self):
-        if self._voice_client:
-            await self.current_track.create_source()
-            self._voice_client.play(self.current_track.source)
-            logger.info(f"play track, {self.current_track.beautiful_title}")
+    async def _play_current(self, interaction):
+        if not self._voice_client or not self.current_track:
+            return
+
+        if isinstance(self.current_track, TrackSource):
+            self.current_track.create_source()
+
+        self._voice_client.play(
+            self.current_track.source,
+            after=lambda e: asyncio.run_coroutine_threadsafe(
+                self.handle_playback(e, interaction),
+                self._voice_client.loop
+            )
+        )
+        logger.info(f"play track, {self.current_track.beautiful_title}")
+
+    async def handle_playback(self, error: Optional[Exception], interaction: discord.Interaction):
+        if error:
+            return logger.error(f"Playback error: {str(error)}")
+
+        if self.current_track:
+            self.current_track.cleanup()
+            self.current_track = None
+
+        if self.queue:
+            await interaction.followup.send(
+                f"Переключаюсь на следующий трек **{self.queue[0].beautiful_title}**"
+            )
+            await self.play_next(interaction)
+        else:
+            logger.info("Queue is empty, stopping playback")
+            await interaction.followup.send(
+                f"Очередь воспроизведения кончилась"
+            )
 
     async def pause(self) -> None:
         if self._voice_client and self.is_playing:
@@ -250,15 +341,15 @@ class VoiceState:
     async def stop(self) -> None:
         if self._voice_client and self.is_playing:
             self._voice_client.stop()
-            await self.current_track.cleanup()
             logger.info(f"stop track, {self.current_track.beautiful_title}")
+            self.current_track.cleanup()
 
     async def cleanup(self) -> None:
         if self.current_track:
-            await self.current_track.cleanup()
+            self.current_track.cleanup()
 
         for track in self.queue:
-            await track.cleanup()
+            track.cleanup()
 
 
 class VoiceStateManager:
@@ -288,7 +379,7 @@ class VoiceCog(commands.Cog):
                 await voice_state.disconnect()
 
     @app_commands.command(name="join", description="connect to your channel")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def join(self, interaction: discord.Interaction, force: bool = False):
         user_voice = interaction.user.voice
         if not user_voice:
@@ -313,7 +404,7 @@ class VoiceCog(commands.Cog):
             )
 
     @app_commands.command(name="disconnect", description="disconnect from your channel")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def disconnect(self, interaction: discord.Interaction, force: bool = False):
         user_voice = interaction.user.voice
         if not force and not user_voice:
@@ -333,7 +424,7 @@ class VoiceCog(commands.Cog):
                 )
             else:
                 await interaction.response.send_message(  # type: ignore
-                    f"Выхожу из канала: {voice_state.current_channel.name}."
+                    f"Выхожу из канала: {voice_state.current_channel.mention}."
                 )
                 await voice_state.disconnect()
         else:
@@ -343,8 +434,8 @@ class VoiceCog(commands.Cog):
             )
 
     @app_commands.command(name="play", description="play YouTube url now")
-    @GuardBot.error_handler
-    async def play(self, interaction: discord.Interaction, url: str):
+    @GuardBot.error_handler(is_defer=True)
+    async def play(self, interaction: discord.Interaction, url: str, with_download: bool = False):
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -367,8 +458,7 @@ class VoiceCog(commands.Cog):
                 if voice_state.is_playing:
                     await voice_state.stop()
 
-                while voice_state.queue and voice_state.is_connected:
-                    await self._play_audio_main(interaction, voice_state, url)
+                await self._play_audio_main(interaction, voice_state, url, with_download)
         else:
             await interaction.followup.send(  # type: ignore
                 f"Захожу в канал {user_voice.channel.mention}, чтобы проиграть звук"
@@ -376,11 +466,11 @@ class VoiceCog(commands.Cog):
 
             await voice_state.connect_or_move(user_voice.channel)
 
-            await self._play_audio_main(interaction, voice_state, url)
+            await self._play_audio_main(interaction, voice_state, url, with_download)
 
     @app_commands.command(name="add_track", description="add YouTube url in queue")
-    @GuardBot.error_handler
-    async def add_track(self, interaction: discord.Interaction, url: str):
+    @GuardBot.error_handler(is_defer=True)
+    async def add_track(self, interaction: discord.Interaction, url: str, with_download: bool = False):
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -401,7 +491,7 @@ class VoiceCog(commands.Cog):
                 )
             else:
                 try:
-                    await self._add_track_to_queue(interaction, voice_state, url)
+                    await self._add_track_to_queue(interaction, voice_state, url, with_download)
                 except Exception:
                     raise
         else:
@@ -411,17 +501,31 @@ class VoiceCog(commands.Cog):
 
             await voice_state.connect_or_move(user_voice.channel)
 
-            await self._play_audio_main(interaction, voice_state, url)
+            await self._play_audio_main(interaction, voice_state, url, with_download)
 
     @staticmethod
-    async def _play_audio_main(interaction: discord.Interaction, voice_state: VoiceState, url: str):
-        track = TrackSource(url)
-
+    async def _play_audio_main(
+            interaction: discord.Interaction,
+            voice_state: VoiceState,
+            url: str,
+            with_download: bool
+    ):
         try:
-            await track.download_audio()
+            with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if 'entries' in info:
+                    await VoiceCog._handle_playlist(interaction, voice_state, info, with_download)
+                    return
+
+            track = TrackSource(url) if with_download else TrackStream(url)
+
+            if with_download:
+                track.download_audio()
+
         except:
+            logger.exception("error load URL")
             return await interaction.followup.send(
-                f"Не вышло загрузить: **{track.beautiful_title}**"
+                f"Не вышло загрузить: `{url}`"
             )
 
         try:
@@ -430,8 +534,7 @@ class VoiceCog(commands.Cog):
                 f"Воспроизвожу: **{track.beautiful_title}**"
             )
 
-            await voice_state.play(track)
-            await VoiceCog._playing_mainloop(interaction, voice_state)
+            await voice_state.play(track, interaction)
         except:
             await interaction.followup.send(
                 f"Не смог воспроизвести **{track.beautiful_title}**"
@@ -440,32 +543,79 @@ class VoiceCog(commands.Cog):
             raise
 
     @staticmethod
-    async def _playing_mainloop(interaction: discord.Interaction, voice_state: VoiceState):
-        while voice_state.is_playing or not voice_state.is_paused:
-            await asyncio.sleep(0.5)
+    async def _handle_playlist(
+            interaction: discord.Interaction,
+            voice_state: VoiceState,
+            playlist_info: dict,
+            with_download: bool
+    ):
+        total = len(playlist_info['entries'])
+        added = 0
 
-            if not voice_state.is_connected: break
-        else:
-            if voice_state.current_track.filename not in [track.url for track in voice_state.queue]:
-                await voice_state.current_track.cleanup()
-            await voice_state.play_next()
-            await interaction.followup.send(
-                f"Проигрываю следующй трек **{voice_state.current_track.beautiful_title}**"
-            )
+        await interaction.followup.send(f"🎶 Начинаю загрузку плейлиста ({total} треков)...")
+
+        load_message: discord.Message = None
+
+        for entry in playlist_info['entries']:
+            if not entry.get('url'):
+                continue
+
+            try:
+                track = TrackSource(entry['url']) if with_download else TrackStream(entry['url'])
+                await voice_state.add_source(track)
+                added += 1
+
+                if added % 5 == 0:
+                    content = f"✅ Добавлено {added}/{total} треков"
+                    if not load_message:
+                        load_message = await interaction.channel.send(content)
+                        await voice_state.play_next(interaction)
+                        interaction.followup.send(
+                            f"Начинаю воспроизведение трэка {track.beautiful_title}"
+                        )
+                    else:
+                        await load_message.edit(content=content)
+
+            except Exception as e:
+                logger.error(f"Playlist entry error: {str(e)}")
+
+        await load_message.edit(content=f"✅ Добавлено {added}/{total} треков")
+
+        await interaction.channel.send(
+            f"🎵 Плейлист **{playlist_info.get('title', 'Unnamed')}** добавлен в очередь "
+            f"({added} треков из {total})"
+        )
+
+        if not voice_state.is_playing:
+            await voice_state.play_next(interaction)
 
     @staticmethod
-    async def _add_track_to_queue(interaction: discord.Interaction, voice_state: VoiceState, url: str):
-        track = TrackSource(url)
+    async def _add_track_to_queue(
+            interaction: discord.Interaction,
+            voice_state: VoiceState,
+            url: str,
+            with_download: bool
+    ):
+        try:
+            with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if 'entries' in info:
+                    await VoiceCog._handle_playlist(interaction, voice_state, info, with_download)
+                    return
+
+            track = TrackSource(url) if with_download else TrackStream(url)
+        except:
+            logger.exception("error load URL")
+            return await interaction.followup.send(
+                f"Не вышло загрузить: `{url}`"
+            )
 
         try:
             await voice_state.add_source(track)
 
             logger.debug(f"add to queue {url}")
             await interaction.followup.send(
-                f"Добавил " +
-                f"и уже загрузил трэк  **{track.beautiful_title}**"
-                if track.filename else
-                f"трэк  **{track.beautiful_title}** в очередь на загрузку"
+                f"Добавил трэк  **{track.beautiful_title}** в очередь"
             )
         except:
             await interaction.followup.send(
@@ -474,8 +624,47 @@ class VoiceCog(commands.Cog):
             logger.error(f"error adding to queue  {track.beautiful_title}")
             raise
 
+    @app_commands.command(name="play_next", description="skip playing track")
+    @GuardBot.error_handler()
+    async def play_next(self, interaction: discord.Interaction):
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
+                await interaction.response.send_message(  # type: ignore
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
+                )
+            else:
+                if voice_state.current_track:
+                    await interaction.response.send_message(  # type: ignore
+                        f"Пропускаю **{voice_state.current_track.beautiful_title}**"
+                    )
+                else:
+                    await interaction.response.send_message(  # type: ignore
+                        f"Не могу, очередь пуста"
+                    )
+
+                if voice_state.queue:
+                    await voice_state.play_next(interaction)
+                else:
+                    await voice_state.stop()
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
+
     @app_commands.command(name="pause", description="pause playing")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def pause(self, interaction: discord.Interaction):
         user_voice = interaction.user.voice
         if not user_voice:
@@ -510,7 +699,7 @@ class VoiceCog(commands.Cog):
             )
 
     @app_commands.command(name="resume", description="resume playing")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def resume(self, interaction: discord.Interaction):
         user_voice = interaction.user.voice
         if not user_voice:
@@ -545,7 +734,7 @@ class VoiceCog(commands.Cog):
             )
 
     @app_commands.command(name="stop", description="stop playing")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def stop(self, interaction: discord.Interaction):
         user_voice = interaction.user.voice
         if not user_voice:
@@ -574,117 +763,8 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="play_next", description="skip playing track")
-    @GuardBot.error_handler
-    async def play_next(self, interaction: discord.Interaction):
-        user_voice = interaction.user.voice
-        if not user_voice:
-            return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
-                ephemeral=True
-            )
-
-        guild = interaction.guild
-        voice_state = self.voice_state_manager.voice_state(guild.id)
-
-        if voice_state.current_channel:
-            if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
-                    ephemeral=True
-                )
-            else:
-                await interaction.response.send_message(  # type: ignore
-                    f"Пропускаю **{voice_state.current_track.beautiful_title}**"
-                )
-                if voice_state.queue:
-                    await voice_state.play_next()
-                else:
-                    await voice_state.stop()
-        else:
-            await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
-                ephemeral=True
-            )
-
-    @app_commands.command(name="show_queue", description="show audio queue")
-    @GuardBot.error_handler
-    async def show_queue(self, interaction: discord.Interaction):
-        user_voice = interaction.user.voice
-        if not user_voice:
-            return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
-                ephemeral=True
-            )
-
-        guild = interaction.guild
-        voice_state = self.voice_state_manager.voice_state(guild.id)
-
-        if voice_state.current_channel:
-            if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
-                    ephemeral=True
-                )
-            else:
-                guild = interaction.guild
-                voice_state = self.voice_state_manager.voice_state(guild.id)
-
-                if voice_state.current_track:
-                    resp = f"Сейчас играет: {voice_state.current_track.beautiful_title}\n"
-                else:
-                    resp = f"Сейчас ничего не играет\n"
-
-                if voice_state.queue:
-                    resp += "В очереди лежат:\n"
-                for i, track in enumerate(voice_state.queue):
-                    resp += f"{i} - {track.beautiful_title}"
-
-                await interaction.response.send_message(  # type: ignore
-                    resp
-                )
-        else:
-            await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
-                ephemeral=True
-            )
-
-    @app_commands.command(name="clear_queue", description="clear audio queue")
-    @GuardBot.error_handler
-    async def clear_queue(self, interaction: discord.Interaction):
-        user_voice = interaction.user.voice
-        if not user_voice:
-            return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
-                ephemeral=True
-            )
-
-        guild = interaction.guild
-        voice_state = self.voice_state_manager.voice_state(guild.id)
-
-        if voice_state.current_channel:
-            if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
-                    ephemeral=True
-                )
-            else:
-                guild = interaction.guild
-                voice_state = self.voice_state_manager.voice_state(guild.id)
-
-                voice_state.queue.clear()
-
-                await interaction.response.send_message(  # type: ignore
-                    "Очистил список воспроизведения"
-                )
-        else:
-            await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
-                ephemeral=True
-            )
-
     @app_commands.command(name="stop_all", description="atop playing and clear queue")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     async def stop_all(self, interaction: discord.Interaction):
         user_voice = interaction.user.voice
         if not user_voice:
@@ -706,11 +786,98 @@ class VoiceCog(commands.Cog):
                 guild = interaction.guild
                 voice_state = self.voice_state_manager.voice_state(guild.id)
 
+                await interaction.response.defer()  # type: ignore
+
                 await voice_state.stop()
                 await voice_state.cleanup()
 
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(  # type: ignore
                     "Очистил все воспроизведения"
+                )
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
+
+    @app_commands.command(name="show_queue", description="show audio queue")
+    @GuardBot.error_handler()
+    async def show_queue(self, interaction: discord.Interaction):
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
+                await interaction.response.send_message(  # type: ignore
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
+                )
+            else:
+                guild = interaction.guild
+                voice_state = self.voice_state_manager.voice_state(guild.id)
+
+                await interaction.response.defer()  # type: ignore
+
+                if voice_state.current_track and voice_state.current_track.source:
+                    resp = f"Сейчас играет: **{voice_state.current_track.beautiful_title}**\n"
+                else:
+                    resp = f"Сейчас ничего не играет\n"
+
+                if voice_state.queue:
+                    resp += "В очереди лежат:\n"
+
+                    for i, track in enumerate(voice_state.queue):
+                        if isinstance(track, TrackStream):
+                            status = 'S'
+                        else:
+                            status = 'R' if track.filename else 'L' if track.loading else 'Q'
+                        resp += f"{i + 1} - {status} - **{track.beautiful_title}**\n"
+
+                await interaction.followup.send(  # type: ignore
+                    GuardBot.normalize_response_size(resp)
+                )
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
+
+    @app_commands.command(name="clear_queue", description="clear audio queue")
+    @GuardBot.error_handler()
+    async def clear_queue(self, interaction: discord.Interaction):
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
+                await interaction.response.send_message(  # type: ignore
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
+                )
+            else:
+                guild = interaction.guild
+                voice_state = self.voice_state_manager.voice_state(guild.id)
+
+                await interaction.response.defer()  # type: ignore
+
+                voice_state.queue.clear()
+
+                await interaction.followup.send(  # type: ignore
+                    "Очистил список воспроизведения"
                 )
         else:
             await interaction.response.send_message(  # type: ignore
@@ -725,10 +892,13 @@ class VoiceCog(commands.Cog):
 
         voice_state = self.voice_state_manager.voice_state(member.guild.id)
         if (
-                not after.channel and before.channel
-                and voice_state.current_channel and voice_state.current_channel.id == before.channel.id
+                not member.bot and not after.channel and before.channel and voice_state.current_channel
+                and voice_state.current_channel.id == before.channel.id
+                and len(before.channel.members) == 1
         ):
             self.voice_state_manager.remove(member.guild.id)
+            await voice_state.stop()
+            await voice_state.cleanup()
             await voice_state.disconnect()
 
 

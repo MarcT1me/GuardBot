@@ -12,26 +12,19 @@ class TestCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="test_drop_exc", description="Выбрасывает ошибку выбранного уровня (1, 2)")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(administrator=True)
-    async def test_drop_exc(self, interaction: discord.Interaction, level: int):
+    async def test_drop_exc(self, interaction: discord.Interaction):
         class TestDropException(Exception):
             pass
 
-        match level:
-            case 1:
-                await interaction.channel.send(
-                    f"""Выкидываю `raise TestDropException<Exception>("TEST DROP")`. уровень - ErrorLevel.First"""
-                )
-                raise TestDropException("TEST DROP")
-            case 2:
-                await interaction.channel.send(  # type: ignore
-                    f"""Выкидываю `raise TestDropException<Exception>("TEST DROP")`. уровень - ErrorLevel.Second"""
-                )
-                raise TestDropException("TEST DROP")
+        await interaction.channel.send(
+            f"""Выкидываю `raise TestDropException<Exception>("TEST DROP")`. уровень - ErrorLevel.First"""
+        )
+        raise TestDropException("TEST DROP")
 
     @app_commands.command(name="test_drop_http", description="вызывает ошибку HTTP 400")
-    @GuardBot.error_handler
+    @GuardBot.error_handler()
     @GuardBot.has_permission(administrator=True)
     async def test_drop_http(self, interaction: discord.Interaction, force: bool = False):
         channel = await interaction.guild.create_text_channel(
@@ -63,7 +56,6 @@ class TestCog(commands.Cog):
         await interaction.response.send(  # type: ignore
             "❌ Не сработало."
         )
-
 
 
 async def setup(bot: GuardBot):
