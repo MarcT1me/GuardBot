@@ -70,7 +70,7 @@ class Channel(Model):
 
     class Meta:
         unique_together = (
-            ("server", "type"),
+            ("id", "server", "type"),
         )
 
 

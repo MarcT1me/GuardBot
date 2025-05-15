@@ -103,9 +103,9 @@ class TrackStream(BaseTrack):
         return FFmpegOpusAudio(
             self.source_url,
             before_options=[
-                '-reconnect 10',
-                '-reconnect_streamed 10',
-                '-reconnect_delay_max 25',
+                '-reconnect 20',
+                '-reconnect_streamed 20',
+                '-reconnect_delay_max 30',
                 '-headers', '\r\n'.join(f'{k}: {v}' for k, v in self._COMMON_HEADERS.items())
             ],
             options=['-vn -b:a 192k']
@@ -372,6 +372,8 @@ class VoiceCog(commands.Cog):
         self.bot = bot
         self.voice_state_manager = VoiceStateManager()
 
+        self.execute_voice = True
+
     async def disconnect_all(self):
         for guild in self.bot.guilds:
             if voice_state := self.voice_state_manager.remove(guild.id):
@@ -537,8 +539,8 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @staticmethod
     async def _play_audio_main(
+            self,
             interaction: discord.Interaction,
             voice_state: VoiceState,
             url: str,
@@ -548,14 +550,19 @@ class VoiceCog(commands.Cog):
             with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if 'entries' in info:
-                    await VoiceCog._handle_playlist(interaction, voice_state, info, with_download)
+                    await self._handle_playlist(interaction, voice_state, info, with_download)
                     return
+
+            message = await interaction.channel.send(
+                f"Подождите, загружаю `{url}`..."
+            )
 
             track = TrackSource(url) if with_download else TrackStream(url)
 
             if with_download:
                 track.download_audio()
 
+            await message.delete()
         except:
             logger.exception("error load URL")
             return await interaction.followup.send(
@@ -576,8 +583,43 @@ class VoiceCog(commands.Cog):
             logger.error(f"error playing {track.beautiful_title}")
             raise
 
-    @staticmethod
+    async def _add_track_to_queue(
+            self,
+            interaction: discord.Interaction,
+            voice_state: VoiceState,
+            url: str,
+            with_download: bool
+    ):
+        try:
+            with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if 'entries' in info:
+                    await self._handle_playlist(interaction, voice_state, info, with_download)
+                    return
+
+            track = TrackSource(url) if with_download else TrackStream(url)
+        except:
+            logger.exception("error load URL")
+            return await interaction.followup.send(
+                f"Не вышло загрузить: `{url}`"
+            )
+
+        try:
+            await voice_state.add_source(track)
+
+            logger.debug(f"add to queue {url}")
+            await interaction.followup.send(
+                f"Добавил трэк  **{track.beautiful_title}** в очередь"
+            )
+        except:
+            await interaction.followup.send(
+                f"Не смог добавить  **{track.beautiful_title}** в список воспроизведений"
+            )
+            logger.error(f"error adding to queue  {track.beautiful_title}")
+            raise
+
     async def _handle_playlist(
+            self,
             interaction: discord.Interaction,
             voice_state: VoiceState,
             playlist_info: dict,
@@ -602,13 +644,16 @@ class VoiceCog(commands.Cog):
                 if added % 5 == 0:
                     content = f"✅ Добавлено {added}/{total} треков"
                     if not load_message:
+                        if not self.execute_voice: break
+
                         load_message = await interaction.channel.send(content)
-                        await voice_state.play_next(interaction)
-                        interaction.followup.send(
-                            f"Начинаю воспроизведение трэка {track.beautiful_title}"
-                        )
-                    else:
-                        await load_message.edit(content=content)
+                        if not voice_state.is_playing:
+                            interaction.followup.send(
+                                f"Начинаю воспроизведение плейлиста с трэка {track.beautiful_title}"
+                            )
+                            await voice_state.play_next(interaction)
+
+                    await load_message.edit(content=content)
 
             except Exception as e:
                 logger.error(f"Playlist entry error: {str(e)}")
@@ -622,41 +667,6 @@ class VoiceCog(commands.Cog):
 
         if not voice_state.is_playing:
             await voice_state.play_next(interaction)
-
-    @staticmethod
-    async def _add_track_to_queue(
-            interaction: discord.Interaction,
-            voice_state: VoiceState,
-            url: str,
-            with_download: bool
-    ):
-        try:
-            with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if 'entries' in info:
-                    await VoiceCog._handle_playlist(interaction, voice_state, info, with_download)
-                    return
-
-            track = TrackSource(url) if with_download else TrackStream(url)
-        except:
-            logger.exception("error load URL")
-            return await interaction.followup.send(
-                f"Не вышло загрузить: `{url}`"
-            )
-
-        try:
-            await voice_state.add_source(track)
-
-            logger.debug(f"add to queue {url}")
-            await interaction.followup.send(
-                f"Добавил трэк  **{track.beautiful_title}** в очередь"
-            )
-        except:
-            await interaction.followup.send(
-                f"Не смог добавить  **{track.beautiful_title}** в список воспроизведений"
-            )
-            logger.error(f"error adding to queue  {track.beautiful_title}")
-            raise
 
     @app_commands.command(name="play_next", description="skip playing track")
     @GuardBot.error_handler()
@@ -912,6 +922,43 @@ class VoiceCog(commands.Cog):
 
                 await interaction.followup.send(  # type: ignore
                     "Очистил список воспроизведения"
+                )
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
+
+    @app_commands.command(name="stop_voce_commands", description="clear audio queue")
+    @GuardBot.error_handler()
+    async def stop_voce_commands(self, interaction: discord.Interaction, time: float = 1.0):
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
+                await interaction.response.send_message(  # type: ignore
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(  # type: ignore
+                    "Останавливаю все войс команды"
+                )
+
+                self.execute_voice = False
+                await asyncio.sleep(time)
+                self.execute_voice = True
+
+                await interaction.followup.send(  # type: ignore
+                    "Время прошло, можно снова использовать войс команды"
                 )
         else:
             await interaction.response.send_message(  # type: ignore

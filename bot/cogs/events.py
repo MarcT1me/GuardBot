@@ -24,57 +24,43 @@ class EventCog(commands.Cog):
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
         script_name, guild_id = await self.get_event_script_name(None, "on_member_join")
-        await self.bot.script_eng.execute(
-            script_name,
-            None,
-            guild=guild
-        )
+        await self.bot.script_eng.execute(script_name, None,
+                                          guild=guild)
 
         script_name, guild_id = await self.get_event_script_name(None, "on_ready")
-        await self.bot.script_eng.execute(
-            script_name,
-            None,
-            guild=guild
-        )
+        await self.bot.script_eng.execute(script_name, None,
+                                          guild=guild)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         script_name, guild_id = await self.get_event_script_name(None, "on_member_join")
-        await self.bot.script_eng.execute(
-            script_name,
-            None,
-            member=member
-        )
+        await self.bot.script_eng.execute(script_name, None,
+                                          member=member
+                                          )
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         script_name, guild_id = await self.get_event_script_name(None, "on_member_remove")
-        await self.bot.script_eng.execute(
-            script_name,
-            None,
-            member=member
-        )
+        await self.bot.script_eng.execute(script_name, None,
+                                          member=member
+                                          )
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
         script_name, guild_id = await self.get_event_script_name(None, "on_message")
-        await self.bot.script_eng.execute(
-            script_name,
-            None,
-            msg=msg
-        )
+        await self.bot.script_eng.execute(script_name, None,
+                                          msg=msg
+                                          )
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member,
                                     before: discord.VoiceState, after: discord.VoiceState):
         script_name, guild_id = await self.get_event_script_name(None, "on_voice_state_update")
-        await self.bot.script_eng.execute(
-            script_name,
-            None,
-            member=member,
-            before=before,
-            after=after
-        )
+        await self.bot.script_eng.execute(script_name, None,
+                                          member=member,
+                                          before=before,
+                                          after=after
+                                          )
 
 
 async def setup(bot: GuardBot):

@@ -188,9 +188,9 @@ class PythonScript(BaseScript):
 
             new_content += line + "\n"
 
-        with open(f"script{PythonScript.iter}.py", mode="w", encoding="utf-8") as f:
-            f.write(new_content)
-            PythonScript.iter += 1
+        # with open(f"__test__\\scripts\\script{PythonScript.iter}.py", mode="w", encoding="utf-8") as f:
+        #     f.write(new_content)
+        #     PythonScript.iter += 1
 
         return new_content
 

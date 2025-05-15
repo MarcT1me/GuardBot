@@ -19,6 +19,7 @@ class PermissionCheckError(Exception):
 
 class GuardBot(commands.Bot):
     instance: 'GuardBot' = None
+    is_restart: bool = False
 
     bot_dev_users = [864811730337267734, 805395077496832011, 957269545326891028]
 
@@ -176,6 +177,7 @@ class GuardBot(commands.Bot):
     @commands.Cog.listener()
     async def on_ready(self):
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
+        await self.tree.sync()
 
     async def _load_cogs(self) -> None:
         """Загрузка всех когов из папки cogs"""

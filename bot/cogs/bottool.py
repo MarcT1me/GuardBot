@@ -124,6 +124,12 @@ class BotToolCog(commands.Cog):
             )
             raise
 
+    @app_commands.command(name="restart_bot")
+    @GuardBot.error_handler()
+    async def restart_bot(self, interaction: discord.Interaction):
+        await self._stop_bot(interaction)
+        GuardBot.is_restart = True
+
     @app_commands.command(name="close_bot")
     @GuardBot.error_handler()
     async def close_bot(self, interaction: discord.Interaction):
@@ -133,6 +139,9 @@ class BotToolCog(commands.Cog):
                 "GET OF FUCK OUT!!! 🤬🤬🤬"
             )
 
+        await self._stop_bot(interaction)
+
+    async def _stop_bot(self, interaction):
         await interaction.channel.send(
             "💤 Try to stop bot working"
         )

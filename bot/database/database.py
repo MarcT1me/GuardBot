@@ -134,8 +134,8 @@ class GuardDatabase(Database):
         return script
 
     @classmethod
-    async def get_channel(cls, server: Server, channel_type, name: str) -> Channel:
-        return await Channel.get_or_none(server=server, type=channel_type, name=name)
+    async def get_channels(cls, server: Server, channel_type) -> list[Channel]:
+        return await Channel.filter(server=server, type=channel_type)
 
     @classmethod
     async def get_channel_by_id(cls, channel_id):
