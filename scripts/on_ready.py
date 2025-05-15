@@ -1,13 +1,7 @@
-from loguru import logger
-
-import discord
-from discord import app_commands
-from discord.ext import commands
-
-from bot import GuardBot
+from bot.script_evs import *
 
 
-class EliteGuardionCog(commands.Cog):
+class EliteGuardionCog(Cog):
     def __init__(self, bot: GuardBot):
         self.bot: GuardBot = bot
 

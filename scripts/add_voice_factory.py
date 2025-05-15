@@ -1,6 +1,4 @@
-import discord
-
-from bot import GuardBot
+from bot.script_evs import *
 
 
 async def main(*, bot: GuardBot, interaction: discord.Interaction, channel_id: int):

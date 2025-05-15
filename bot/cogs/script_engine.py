@@ -1,21 +1,53 @@
-from typing import Any, Type, Callable
+from typing import Any, Type, Callable, Optional
 from abc import ABC, abstractmethod
 from pathlib import Path
-import math
+
 import asyncio
+import datetime
+import random
+import discord
+import math
 
 from discord.ext import commands
 
 import lupa
 from loguru import logger
 
-from bot.bot import GuardBot
-from bot.database import GuardDatabase
+from bot.bot import GuardBot, GuardDatabase
 
 
 class BaseScript(ABC):
     """Абстрактный базовый класс для скриптов"""
     lang = None
+
+    class __ScriptEnvObj:
+        def __init__(self, obj: object, excepts: tuple[str] = ()):
+            for name, value in {
+                attr: getattr(obj, attr)
+                for attr in dir(obj)
+                if not attr.startswith('_') and attr not in excepts
+            }.items(): setattr(self, name, value)
+
+    __script_env = {
+        "discord": __ScriptEnvObj(discord, excepts=("ext",)),
+        "Cog": commands.Cog,
+        "app_commands": __ScriptEnvObj(discord.app_commands),
+
+        "datetime": __ScriptEnvObj(datetime),
+        "asyncio": __ScriptEnvObj(asyncio),
+        "random": __ScriptEnvObj(random),
+
+        "Any": Any,
+        "Callable": Callable,
+        "Optional": Optional,
+        "logger": logger,
+
+        "err_handler": GuardBot.error_handler,
+        "has_permission": GuardBot.has_permission,
+        "normalize_response_size": GuardBot.normalize_response_size,
+        "normalized_reason": GuardBot.normalized_reason,
+        "normalize_response_reason": GuardBot.normalize_response_reason,
+    }
 
     def __init__(self, engine: 'ScriptEngine'):
         self.engine: ScriptEngine = engine
@@ -27,9 +59,10 @@ class BaseScript(ABC):
             self.code_env = self.engine.lua_runtime.table()
 
         for name, value in {
-            "__guild_id__": 0,
+            **BaseScript.__script_env,
+
+            "guild_id": None,
             "include": self.include,
-            "logger": logger,
             "calculate": self.safe_calculate,
         }.items(): self[name] = value
 
@@ -74,7 +107,7 @@ class BaseScript(ABC):
         except Exception as e:
             raise ValueError(f"Calculation Error: {str(e)}")
 
-    def include(self, script_name: str, as_name: str = None):
+    def include(self, script_name: str, as_name: str = None) -> None:
         include_script = self.engine.get_script(self["__guild_id__"], self.code_env)
         if as_name is None: as_name = script_name
         self[as_name] = include_script
@@ -89,7 +122,7 @@ class BaseScript(ABC):
 
     @abstractmethod
     async def execute(self, guild_id: int, context: dict) -> Any:
-        self["__guild_id__"] = guild_id
+        self["guild_id"] = guild_id
 
 
 class LuaScript(BaseScript):
@@ -125,10 +158,41 @@ class PythonScript(BaseScript):
     lang = "py"
 
     def compile(self, content: str) -> 'PythonScript':
-        exec(content, self.code_env)
+        exec(
+            self.normalize(content),
+            self.code_env
+        )
 
         self._update_main_func()
         return self
+
+    iter = 0
+
+    def normalize(self, context: str) -> str:
+        context = context.replace("from bot.script_evs import *", "")
+        context = context.replace("GuardBot", "Any")
+
+        new_content = ""
+        for line in context.split("\n"):
+            if line.startswith("import"):
+                data = line.split()
+
+                l = len(data)
+                if l != 2 or (l != 4 and "as" not in line):
+                    raise ImportError(f"Not allow import in script: {line}")
+
+                new_content += f"include(\"{data[1]}\", " + (
+                    f"\"{data[3]}\"" if "as" in line else "None"
+                ) + ")" + "\n"
+                continue
+
+            new_content += line + "\n"
+
+        with open(f"script{PythonScript.iter}.py", mode="w", encoding="utf-8") as f:
+            f.write(new_content)
+            PythonScript.iter += 1
+
+        return new_content
 
     async def execute(self, guild_id: int, context: dict) -> Any:
         await super().execute(guild_id, context)

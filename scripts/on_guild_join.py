@@ -1,7 +1,4 @@
-import discord
-from loguru import logger
-
-from bot import GuardBot
+from bot.script_evs import *
 
 
 async def main(*, bot: GuardBot, guild: discord.Guild):

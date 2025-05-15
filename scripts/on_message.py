@@ -1,7 +1,4 @@
-import discord
-from loguru import logger
-
-from bot import GuardBot
+from bot.script_evs import *
 
 
 async def main(*, bot: GuardBot, msg: discord.Message):
@@ -13,7 +10,8 @@ async def main(*, bot: GuardBot, msg: discord.Message):
     if msg.content:
         ret += "\ncontent: " + msg.content
     for embed in msg.embeds:
-        ret += "\nembed: " + embed.title
+        ret += "\nembed:\ntitle: " + embed.title if embed.title else "None"
+        ret += "\ndescription: " + embed.description if embed.description else "None"
     logger.info(
         ret
     )

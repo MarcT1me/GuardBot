@@ -1,11 +1,7 @@
-import discord
-
-from bot import GuardBot
+from bot.script_evs import *
 
 
 async def main(*, bot: GuardBot, interaction: discord.Interaction):
-    guild_id = interaction.guild_id
-
     await bot.db.save_botdevuser(
         guild_id,
         805395077496832011,

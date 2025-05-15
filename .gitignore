@@ -4,5 +4,6 @@ __test__
 __pycache__
 
 *__test__*
+script*.py
 *cookies*
 *.sqlite3*

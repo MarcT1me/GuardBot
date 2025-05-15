@@ -1,15 +1,9 @@
-import random
-from loguru import logger
-
-import discord
-from bot import GuardBot
-
-__guild_id__: int
+from bot.script_evs import *
 
 
 async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int = None, **kwargs):
     if member_id is not None:
-        guild = bot.get_guild(__guild_id__)
+        guild = bot.get_guild(guild_id)
         for member in guild.members:
             if member.id == member_id:
                 break
@@ -27,7 +21,7 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
         logger.exception(f"User saving error: {e}")
 
     guild = member.guild
-    server: bot.db.server = await bot.db.get_server(guild.id)
+    server: bot.db.server = await bot.db.get_server(guild_id)
 
     if system_channel := guild.system_channel:
         try:

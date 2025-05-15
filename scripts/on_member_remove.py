@@ -1,22 +1,17 @@
-import random
-from loguru import logger
-import discord
-from bot import GuardBot
-
-__guild_id__: int
+from bot.script_evs import *
 
 
 async def main(*, bot: GuardBot, member: discord.Member):
     if member.bot: return
 
     try:
-        await bot.db.remove_user(__guild_id__, member.id)
+        await bot.db.remove_user(guild_id, member.id)
         logger.success(f"User {member.name} removed from DataBase")
     except Exception as e:
         logger.exception(f"User removing error: {e}")
 
-    guild = bot.get_guild(__guild_id__)
-    server: bot.db.server = await bot.db.get_server(__guild_id__)
+    guild = bot.get_guild(guild_id)
+    server: bot.db.server = await bot.db.get_server(guild_id)
 
     if system_channel := guild.system_channel:
         try:

@@ -143,9 +143,10 @@ class TrackSource(BaseTrack):
 
     def create_source(self) -> None:
         if not self.filename:
-            self._download_audio()
+            self.download_audio()
 
         try:
+            if self._download_thread: self._download_thread.join()
             self.source = FFmpegOpusAudio(self.filename)
         except Exception as e:
             logger.error(f"Failed to create audio source: {str(e)}")
@@ -502,6 +503,39 @@ class VoiceCog(commands.Cog):
             await voice_state.connect_or_move(user_voice.channel)
 
             await self._play_audio_main(interaction, voice_state, url, with_download)
+
+    @app_commands.command(name="remove_track", description="remove track from queue")
+    @GuardBot.error_handler()
+    async def remove_track(self, interaction: discord.Interaction, index: int = 0):
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
+                await interaction.response.send_message(  # type: ignore
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
+                )
+            else:
+                if queue := voice_state.queue:
+                    if 9 >= index >= len(queue):
+                        return await interaction.response.send_message(  # type: ignore
+                            "Индекс за пределами очереди!",
+                            ephemeral=True
+                        )
+                    queue.pop(index - 1).cleanup()
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
 
     @staticmethod
     async def _play_audio_main(
