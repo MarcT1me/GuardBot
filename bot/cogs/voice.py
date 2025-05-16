@@ -4,7 +4,7 @@ import os
 import asyncio
 
 import discord
-from discord import FFmpegOpusAudio
+from discord import FFmpegOpusAudio, FFmpegPCMAudio
 from discord import app_commands
 from discord.ext import commands
 
@@ -175,7 +175,7 @@ class TrackSource(BaseTrack):
                 self.filename = ydl.prepare_filename(self.info)
                 self.filename = os.path.splitext(self.filename)[0] + '.opus'
 
-            if os.path.getsize(self.filename) < 1024:  # Минимальный размер файла
+            if os.path.getsize(self.filename) < 1024:
                 raise ValueError("Invalid file size")
 
             logger.debug(
@@ -204,6 +204,27 @@ class TrackSource(BaseTrack):
                 logger.error(f"File deletion error: {str(e)}")
             finally:
                 self.filename = None
+
+
+class TrackFile(BaseTrack):
+    _download_thread: Optional[Thread]
+
+    def _initialize(self):
+        self.url = self.url.split("-_-")
+        self.filename: str = self.url[0]
+        self.info = {
+            "title": self.url[1],
+            "channel": self.url[2]
+        }
+
+        try:
+            self.source = FFmpegPCMAudio(self.filename)
+        except Exception as e:
+            logger.error(f"Failed to create audio source: {str(e)}")
+            raise
+
+    def cleanup(self) -> None:
+        pass
 
 
 class VoiceState:
@@ -330,17 +351,17 @@ class VoiceState:
             )
 
     async def pause(self) -> None:
-        if self._voice_client and self.is_playing:
+        if self._voice_client and self.is_playing and self.current_track:
             logger.info(f"pause track, {self.current_track.beautiful_title}")
             self._voice_client.pause()
 
     async def resume(self) -> None:
-        if self._voice_client and self.is_paused:
+        if self._voice_client and self.is_paused and self.current_track:
             logger.info(f"resume track, {self.current_track.beautiful_title}")
             self._voice_client.resume()
 
     async def stop(self) -> None:
-        if self._voice_client and self.is_playing:
+        if self._voice_client and self.is_playing and self.current_track:
             self._voice_client.stop()
             logger.info(f"stop track, {self.current_track.beautiful_title}")
             self.current_track.cleanup()
@@ -381,6 +402,11 @@ class VoiceCog(commands.Cog):
                 await voice_state.cleanup()
                 await voice_state.disconnect()
 
+            for db_channel in await self.bot.db.get_channels(
+                    server=await self.bot.db.get_server(guild_id=guild.id), channel_type="temp_voice"):
+                await guild.get_channel(db_channel.id).delete(reason="channel auto-delete (disconnect_all)")
+                await db_channel.delete()
+
     @app_commands.command(name="join", description="connect to your channel")
     @GuardBot.error_handler()
     async def join(self, interaction: discord.Interaction, force: bool = False):
@@ -402,7 +428,17 @@ class VoiceCog(commands.Cog):
         else:
             await voice_state.connect_or_move(user_voice.channel)
 
-            await interaction.response.send_message(  # type: ignore
+            await interaction.response.defer()  # type: ignore
+
+            await self._play_audio_file(
+                interaction, voice_state, TrackFile(
+                    "assets/the bluetooth device is ready to pair.mp3-_-"
+                    "bluetooth device-_-"
+                    "Server"
+                ), 3
+            )
+
+            await interaction.followup.send(  # type: ignore
                 f"Зашёл в канал: {user_voice.channel.mention}."
             )
 
@@ -426,7 +462,17 @@ class VoiceCog(commands.Cog):
                     ephemeral=True
                 )
             else:
-                await interaction.response.send_message(  # type: ignore
+                await interaction.response.defer()  # type: ignore
+
+                await self._play_audio_file(
+                    interaction, voice_state, TrackFile(
+                        "assets/gaiti.mp3-_-"
+                        "gaiti-_-"
+                        "Server"
+                    ), 3.6
+                )
+
+                await interaction.followup.send(  # type: ignore
                     f"Выхожу из канала: {voice_state.current_channel.mention}."
                 )
                 await voice_state.disconnect()
@@ -460,6 +506,14 @@ class VoiceCog(commands.Cog):
             else:
                 if voice_state.is_playing:
                     await voice_state.stop()
+
+                await self._play_audio_file(
+                    interaction, voice_state, TrackFile(
+                        "assets/accepted.mp3-_-"
+                        "accepted-_-"
+                        "Server"
+                    ), 3.6
+                )
 
                 await self._play_audio_main(interaction, voice_state, url, with_download)
         else:
@@ -527,12 +581,20 @@ class VoiceCog(commands.Cog):
                 )
             else:
                 if queue := voice_state.queue:
-                    if 9 >= index >= len(queue):
+                    if 0 > index >= len(queue):
                         return await interaction.response.send_message(  # type: ignore
                             "Индекс за пределами очереди!",
                             ephemeral=True
                         )
-                    queue.pop(index - 1).cleanup()
+
+                    track = queue.pop(index - 1)
+
+                    await interaction.response.send_message(  # type: ignore
+                        f"Удаляю трек {track.beautiful_title}",
+                        ephemeral=True
+                    )
+
+                    track.cleanup()
         else:
             await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
@@ -576,6 +638,24 @@ class VoiceCog(commands.Cog):
             )
 
             await voice_state.play(track, interaction)
+        except:
+            await interaction.followup.send(
+                f"Не смог воспроизвести **{track.beautiful_title}**"
+            )
+            logger.error(f"error playing {track.beautiful_title}")
+            raise
+
+    async def _play_audio_file(
+            self,
+            interaction: discord.Interaction,
+            voice_state: VoiceState,
+            track: TrackFile,
+            time: float
+    ):
+        try:
+            await voice_state.stop()
+            voice_state._voice_client.play(track.source)
+            await asyncio.sleep(time)
         except:
             await interaction.followup.send(
                 f"Не смог воспроизвести **{track.beautiful_title}**"

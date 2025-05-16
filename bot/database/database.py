@@ -26,7 +26,7 @@ class GuardDatabase(Database):
     channel = Channel
     template = Template
 
-    async def connect(self, db_url: str = "sqlite://guard_db.sqlite3") -> None:
+    async def connect(self, *, db_url: str = "sqlite://guard_db.sqlite3") -> None:
         self.tortoise = await Tortoise.init(
             db_url=db_url,
             modules={'models': ['bot.database.models']}
@@ -39,16 +39,15 @@ class GuardDatabase(Database):
         logger.info("Database connection closed")
 
     @classmethod
-    async def get_server(cls, guild_id: int) -> Server | None:
+    async def get_server(cls, *, guild_id: int) -> Server | None:
         return await Server.get_or_none(guild_id=guild_id)
 
     @classmethod
-    async def save_server(cls, guild_id: int,
-                          name: str, is_active: bool = False,
+    async def save_server(cls, *, guild_id: int,
+                        is_active: bool = False,
                           **additions) -> Server:
         server, _ = await Server.update_or_create(
             guild_id=guild_id,
-            name=name,
 
             defaults={
                 "is_active": is_active,
@@ -58,61 +57,37 @@ class GuardDatabase(Database):
         return server
 
     @classmethod
-    async def get_user(cls, server: Server, user_id: int) -> User | None:
+    async def get_user(cls, *, server: Server, user_id: int) -> User | None:
         return await User.get_or_none(server=server, user_id=user_id)
 
     @classmethod
-    async def save_botdevuser(cls, server_id: int,
-                              user_id: int, user_name: str, user_types: str = "") -> User:
-        if db_user := await cls.get_user(
-                server=await cls.get_server(server_id),
-                user_id=user_id
-        ):
-            db_user.types += "\\botdev" + user_types
-            await db_user.save()
-            return db_user
-
-        user = await cls.save_user(
-            server_id=server_id,
-            user_id=user_id,
-
-            user_name=user_name,
-
-            user_types="botdev\\" + user_types
-        )
-        return user
-
-    @classmethod
-    async def save_user(cls, server_id: int,
-                        user_id: int, user_name: str, user_types: str = "",
+    async def save_user(cls, *, guild_id: int,
+                        user_id: int,
                         **additions) -> User:
         user, _ = await User.update_or_create(
             user_id=user_id,
-            server=await cls.get_server(server_id),
-
-            name=user_name,
+            server=await cls.get_server(guild_id=guild_id),
 
             defaults={
-                "user_types": user_types,
                 "additions": additions
             },
         )
         return user
 
     @classmethod
-    async def remove_user(cls, server: Server, user_id: int):
+    async def remove_user(cls, *, server: Server, user_id: int):
         return User.filter(server=server, user_id=user_id).delete()
 
     @classmethod
-    async def get_script(cls, server: Server, script_type, script_name: str) -> Script:
+    async def get_script(cls, *, server: Server, script_type, script_name: str) -> Script:
         return await Script.get_or_none(server=server, type=script_type, name=script_name)
 
     @classmethod
-    async def get_script_by_id(cls, script_id: int) -> Script:
+    async def get_script_by_id(cls, *, script_id: int) -> Script:
         return await Script.get_or_none(id=script_id)
 
     @classmethod
-    async def save_script(cls, server_id: int,
+    async def save_script(cls, *, server_id: int,
                           script_type: str, name: str,
                           content: str, is_active: bool = False,
                           **additions) -> Script:
@@ -123,55 +98,54 @@ class GuardDatabase(Database):
 
             type=script_type[0],
             name=name,
+            additions=additions,
 
-            language=script_type[1],
             defaults={
                 "content": content,
                 "is_active": is_active,
-                "additions": additions
             }
         )
         return script
 
     @classmethod
-    async def get_channels(cls, server: Server, channel_type) -> list[Channel]:
+    async def get_channels(cls, *, server: Server, channel_type) -> list[Channel]:
         return await Channel.filter(server=server, type=channel_type)
 
     @classmethod
-    async def get_channel_by_id(cls, channel_id):
+    async def get_channel_by_id(cls, *, channel_id):
         return await Channel.get_or_none(id=channel_id)
 
     @classmethod
-    async def save_factory_channel(cls, server_id: int,
+    async def save_factory_channel(cls, *, server_id: int,
                                    channel_id: int,
                                    cooldown: float = 0.0, is_active=False) -> Channel:
         return await cls.save_channel(
-            server_id,
-            channel_id,
-            "voice_factory",
+            server_id=server_id,
+            channel_id=channel_id,
+            channel_type="voice_factory",
 
             cooldown=cooldown,
             is_active=is_active
         )
 
     @classmethod
-    async def save_temp_channel(cls, server_id: int,
+    async def save_temp_channel(cls, *, server_id: int,
                                 channel_id: int,
                                 parent_channel_id: int, owner_id) -> Channel:
         return await cls.save_channel(
-            server_id,
-            channel_id,
-            "temp_voice",
+            server_id=server_id,
+            channel_id=channel_id,
+            channel_type="temp_voice",
 
             parent_channel_id=parent_channel_id,
             owner_id=owner_id,
         )
 
     @classmethod
-    async def save_channel(cls, server_id: int,
+    async def save_channel(cls, *, server_id: int,
                            channel_id: int, channel_type: str,
                            **additions) -> Channel:
-        server = await cls.get_server(server_id)
+        server = await cls.get_server(guild_id=server_id)
         channel, _ = await Channel.update_or_create(
             id=channel_id,
             server=server,
@@ -183,19 +157,19 @@ class GuardDatabase(Database):
         return channel
 
     @staticmethod
-    async def delete_channel(channel_id: int) -> None:
+    async def delete_channel(*, channel_id: int) -> None:
         await Channel.filter(id=channel_id).delete()
 
     @classmethod
-    async def get_template(cls, server: Server, template_name: str) -> Template:
+    async def get_template(cls, *, server: Server, template_name: str) -> Template:
         return await Template.get_or_none(server=server, name=template_name)
 
     @classmethod
-    async def get_template_by_id(cls, template_id: int) -> Template:
+    async def get_template_by_id(cls, *, template_id: int) -> Template:
         return await Template.get_or_none(id=template_id)
 
     @classmethod
-    async def save_template(cls, server_id: int,
+    async def save_template(cls, *, server_id: int,
                             name: str,
                             content: str, is_active: bool = False) -> Template:
         server = await cls.get_server(guild_id=server_id)

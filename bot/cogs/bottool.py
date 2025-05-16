@@ -1,6 +1,7 @@
 import datetime
 from pprint import pformat
 import json
+from sys import exit as sys_exit
 
 import discord
 from discord import app_commands
@@ -43,9 +44,9 @@ class ExecutorSeance:
         )
         self.clear_response()
 
-    async def execute(self, code, guild_id: int, **context) -> any:
-        script = PythonScript.compile(code, self.bot.script_eng)
+    async def execute(self, guild_id: int, code: str, **context) -> any:
         try:
+            script = PythonScript(self.bot.script_eng).compile(guild_id, code)
             script.code_env.update(**self.env)
 
             ret = await script.execute(guild_id, context)
@@ -54,8 +55,10 @@ class ExecutorSeance:
             self.clear_response()
             return ret
         except Exception as e:
+            logger.exception(f"{e}")
             return e
         except RuntimeWarning as e:
+            logger.exception(f"{e}")
             return e
 
 
@@ -88,7 +91,7 @@ class BotToolCog(commands.Cog):
         self.manager = ExecutorManager(bot)
 
     @app_commands.command(name="update_scripts")
-    @GuardBot.error_handler()
+    @GuardBot.error_handler(is_defer=True)
     async def update_scripts(
             self, interaction: discord.Interaction,
             from_db: bool = False
@@ -99,6 +102,8 @@ class BotToolCog(commands.Cog):
                 "GET OF FUCK OUT!!! 🤬🤬🤬"
             )
 
+        await interaction.response.defer()  # type: ignore
+
         try:
             logger.debug("Scripts reloading")
             if from_db:
@@ -107,7 +112,7 @@ class BotToolCog(commands.Cog):
                 error_list = await self.bot.script_eng.load_scripts_from_dir()
 
             if not error_list:
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(  # type: ignore
                     "✅ Success"
                 )
             else:
@@ -115,11 +120,11 @@ class BotToolCog(commands.Cog):
                 for e, description in error_list:
                     error_messages += "\n" + description
 
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(  # type: ignore
                     "⚠️ Any error(s):" + error_messages
                 )
         except Exception as e:
-            await interaction.response.send_message(  # type: ignore
+            await interaction.followup.send(  # type: ignore
                 f"⚠️ Unexpected error: {e}"
             )
             raise
@@ -140,6 +145,7 @@ class BotToolCog(commands.Cog):
             )
 
         await self._stop_bot(interaction)
+        sys_exit(0)
 
     async def _stop_bot(self, interaction):
         await interaction.channel.send(
@@ -217,25 +223,27 @@ class BotToolCog(commands.Cog):
             from_db: bool = False,
             kwargs: str = ""
     ):
+        await interaction.response.defer()  # type: ignore
+
         try:
             ret = await self.bot.script_eng.execute(
                 script_name, interaction.guild_id if from_db else None,
                 interaction=interaction,
                 **json.loads('{' + kwargs + '}')
             )
-            await interaction.response.send_message(  # type: ignore
+            await interaction.followup.send(  # type: ignore
                 "Result:\n"
                 "```\n"
                 f"{pformat(ret)}\n"
                 "```\n"
             )
         except Exception as e:
-            await interaction.response.send_message(  # type: ignore
+            await interaction.followup.send(  # type: ignore
                 f"Критичная ошибка при выполнении: {e}"
             )
             raise
         except RuntimeWarning as e:
-            await interaction.response.send_message(  # type: ignore
+            await interaction.followup.send(  # type: ignore
                 f"Ошибка при выполнении: {e}"
             )
             raise
@@ -256,8 +264,8 @@ class BotToolCog(commands.Cog):
                         send=msg.channel.send
                     )
                     result = await seance.execute(
-                        code,
                         msg.guild.id,
+                        code,
                         msg=msg
                     )
 

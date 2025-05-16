@@ -10,24 +10,14 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
 
     if member.bot: return
 
-    try:
-        await bot.db.save_user(
-            member.guild.id,
-            member.id,
-            member.name
-        )
-        logger.success(f"User {member.name} added to DataBase")
-    except Exception as e:
-        logger.exception(f"User saving error: {e}")
-
     guild = member.guild
-    server: bot.db.server = await bot.db.get_server(guild_id)
+    server: bot.db.server = await bot.db.get_server(guild_id=guild_id)
 
     if system_channel := guild.system_channel:
         try:
             greetings_list_template: bot.db.template = await bot.db.get_template(
-                server,
-                "greetings_list"
+                server=server,
+                template_name="greetings_list"
             )
             greetings = random.choice(greetings_list_template.content.split("\\"))
             await system_channel.send(
@@ -39,10 +29,31 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
             )
             logger.exception(f"User greeting error: {e}")
 
+    event = asyncio.Event()
+    async_events[f"on_member_{member_id}"] = event
+
     try:
-        title: bot.db.template = await bot.db.get_template(server, "join_message_title")
-        description: bot.db.template = await bot.db.get_template(server, "join_message_description")
-        footer: bot.db.template = await bot.db.get_template(server, "join_message_footer")
+        await asyncio.wait_for(event.wait(), timeout=600)
+    except asyncio.TimeoutError:
+        await guild.kick(member, reason="reg timeout")
+        return await member.send(
+            "You didn't accept the rules within 10 minutes"
+        )
+
+    try:
+        await bot.db.save_user(
+            guild_id=member.guild.id,
+            user_id=member.id
+        )
+        logger.success(f"User {member.name} added to DataBase")
+    except Exception as e:
+        logger.exception(f"User saving error: {e}")
+
+    try:
+        title: bot.db.template = await bot.db.get_template(server=server, template_name="join_message_title")
+        description: bot.db.template = await bot.db.get_template(server=server,
+                                                                 template_name="join_message_description")
+        footer: bot.db.template = await bot.db.get_template(server=server, template_name="join_message_footer")
 
         embed = discord.Embed(
             title=title.content.format(member=member),

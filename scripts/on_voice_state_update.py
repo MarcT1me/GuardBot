@@ -1,17 +1,10 @@
 from bot.script_evs import *
 
 
-class Option:
-    name: str = "nickname"
-    change_allows: str = "nobody"
-    size: str = "none"
-
-
-
 async def get_embed(bot: GuardBot, server, member: discord.Member,
                     template_name: str,
                     **kwargs) -> discord.Embed | None:
-    template = await bot.db.get_template(server, template_name)
+    template = await bot.db.get_template(server=server, template_name=template_name)
     if not template:
         logger.warning(f"Template {template_name} not found")
         return None
@@ -37,11 +30,16 @@ async def get_embed(bot: GuardBot, server, member: discord.Member,
 
 async def main(*, bot: GuardBot, member: discord.Member,
                before: discord.VoiceState, after: discord.VoiceState):
+    class Option:
+        name: str = "nickname"
+        change_allows: str = "nobody"
+        size: str = "none"
+
     guild = member.guild
-    server = await bot.db.get_server(guild.id)
+    server = await bot.db.get_server(guild_id=guild.id)
 
     if after.channel:
-        db_channel: bot.db.channel | None = await bot.db.get_channel_by_id(after.channel.id)
+        db_channel: bot.db.channel | None = await bot.db.get_channel_by_id(channel_id=after.channel.id)
 
         if db_channel and db_channel.type == "voice_factory":
             parent_channel: discord.VoiceChannel = after.channel
@@ -83,12 +81,12 @@ async def main(*, bot: GuardBot, member: discord.Member,
                 logger.error(f"Can not send message: {e}")
 
     if before.channel:
-        db_channel: bot.db.channel | None = await bot.db.get_channel_by_id(before.channel.id)
+        db_channel: bot.db.channel | None = await bot.db.get_channel_by_id(channel_id=before.channel.id)
 
         if db_channel and db_channel.type == "temp_voice":
             if len(before.channel.members) == 0:
                 db_parent_channel: bot.db.channel = await bot.db.get_channel_by_id(
-                    db_channel.additions["parent_channel_id"]
+                    channel_id=db_channel.additions["parent_channel_id"]
                 )
                 parent_channel: discord.VoiceChannel = guild.get_channel(db_parent_channel.id)
 
@@ -96,7 +94,7 @@ async def main(*, bot: GuardBot, member: discord.Member,
                     reason=f"{parent_channel.name} child auto-clearing" if parent_channel else "clear tem voice"
                 )
                 await bot.db.delete_channel(
-                    before.channel.id
+                    channel_id=before.channel.id
                 )
                 logger.success("Temp voice deleted")
 

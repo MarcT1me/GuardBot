@@ -56,9 +56,9 @@ async def main(*, bot, interaction):
 
     for template_data in templates:
         await bot.db.save_template(
-            guild.id,
-            template_data["name"],
-            template_data["content"]
+            server_id=guild.id,
+            name=template_data["name"],
+            content=template_data["content"]
         )
 
     await interaction.channel.send("Templates added to DataBase")

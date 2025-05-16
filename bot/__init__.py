@@ -8,7 +8,6 @@ def main():
         database=GuardDatabase()
     )
 
-    try:
-        guard_bot.run(getenv("GUARD_BOT_API_KEY"))
-    finally:
-        guard_bot.loop.run_until_complete(guard_bot.close())
+    guard_bot.run(getenv("GUARD_BOT_API_KEY"))
+
+    return GuardBot.is_restart

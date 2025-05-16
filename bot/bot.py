@@ -21,7 +21,7 @@ class GuardBot(commands.Bot):
     instance: 'GuardBot' = None
     is_restart: bool = False
 
-    bot_dev_users = [864811730337267734, 805395077496832011, 957269545326891028]
+    bot_dev_users = [805395077496832011, 1226073097136771135]
 
     def __new__(cls, *args, **kwargs):
         if not cls.instance:
@@ -148,13 +148,8 @@ class GuardBot(commands.Bot):
 
     async def check_botdev(self, interaction: discord.Interaction) -> bool:
         # Используем await и новый метод из GuardDatabase
-        if interaction.user.id == 805395077496832011: return True
-
-        user = await self.db.get_user(server=self.db.get_server(interaction.guild_id), user_id=interaction.user.id)
-        if "botdev" in user.types and user.id in self.bot_dev_users:
-            return True
-        else:
-            return False
+        if interaction.user.id in self.bot_dev_users: return True
+        return False
 
     @property
     def script_eng(self) -> 'bot.cogs.script_engine.ScriptEngine':
@@ -219,5 +214,6 @@ class GuardBot(commands.Bot):
         await super().start(*args, **kwargs)
 
     async def close(self) -> None:
+        await self.voice_cog.disconnect_all()
         await self.db.close()
         await super().close()

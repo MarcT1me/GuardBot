@@ -3,7 +3,6 @@ from tortoise import Model, fields
 
 class Server(Model):
     guild_id = fields.BigIntField(pk=True)
-    name = fields.TextField()
 
     is_active = fields.BooleanField(default=False)
 
@@ -15,11 +14,7 @@ class User(Model):
     user_id = fields.BigIntField()
     server = fields.ForeignKeyField('models.Server', related_name='server_users')
 
-    types = fields.TextField(default="")
-    name = fields.CharField(max_length=32)
-
     roles = fields.JSONField(default={})
-    scripts = fields.JSONField(default={})
 
     additions = fields.JSONField(default={})  # any data
 
@@ -36,7 +31,6 @@ class Script(Model):
     type = fields.CharField(max_length=50)
     name = fields.CharField(max_length=100)
 
-    language = fields.CharField(max_length=50)
     content = fields.TextField()
     is_active = fields.BooleanField(default=False)
 
@@ -51,8 +45,6 @@ class Script(Model):
 class Role(Model):
     id = fields.BigIntField(pk=True)
     server = fields.ForeignKeyField('models.Server', related_name='server_roles')
-
-    type = fields.CharField(max_length=50)
 
     emoji_id = fields.BigIntField(null=True)
     is_active = fields.BooleanField(default=False)

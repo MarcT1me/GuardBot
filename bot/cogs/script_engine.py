@@ -11,6 +11,9 @@ import math
 from discord.ext import commands
 
 import lupa
+from RestrictedPython import safe_builtins
+import ast
+
 from loguru import logger
 
 from bot.bot import GuardBot, GuardDatabase
@@ -25,11 +28,13 @@ class BaseScript(ABC):
             for name, value in {
                 attr: getattr(obj, attr)
                 for attr in dir(obj)
-                if not attr.startswith('_') and attr not in excepts
+                if not attr.startswith('_') and attr not in excepts and hasattr(obj, attr)
             }.items(): setattr(self, name, value)
 
     __script_env = {
-        "discord": __ScriptEnvObj(discord, excepts=("ext",)),
+        "__builtins__": safe_builtins,
+
+        "discord": __ScriptEnvObj(discord, excepts=("ext", "Object")),
         "Cog": commands.Cog,
         "app_commands": __ScriptEnvObj(discord.app_commands),
 
@@ -48,11 +53,14 @@ class BaseScript(ABC):
         "normalized_reason": GuardBot.normalized_reason,
         "normalize_response_reason": GuardBot.normalize_response_reason,
     }
+    __script_env.get("__builtins__", {}).update(**safe_builtins)
+    __script_env.get("__builtins__", {})["__name__"] = __name__
 
     def __init__(self, engine: 'ScriptEngine'):
         self.engine: ScriptEngine = engine
 
         self.code_env: dict | object = None
+        self.code: Optional[str] = None
         if self.lang == "py":
             self.code_env = dict()
         elif self.lang == "lua":
@@ -90,6 +98,9 @@ class BaseScript(ABC):
             self.main_func = self["main"]
         except AttributeError as e:
             raise AttributeError(f"Code not implement enter point: {str(e)}")
+        finally:
+            if not asyncio.iscoroutinefunction(self.main_func):
+                raise TypeError("Main function must be async")
 
     @staticmethod
     def safe_calculate(expr: str) -> float:
@@ -108,28 +119,36 @@ class BaseScript(ABC):
             raise ValueError(f"Calculation Error: {str(e)}")
 
     def include(self, script_name: str, as_name: str = None) -> None:
-        include_script = self.engine.get_script(self["__guild_id__"], self.code_env)
+        include_script = self.engine.get_script(self["guild_id"], self.code_env)
         if as_name is None: as_name = script_name
         self[as_name] = include_script
 
     def create_safe_context(self, context: dict) -> dict:
-        context["bot"] = self.engine.bot
+        context["bot"] = BaseScript.__ScriptEnvObj(self.engine.bot)
+
+        if msg := context.get("msg"): context["msg"] = BaseScript.__ScriptEnvObj(msg)
+        if member := context.get("member"): context["member"] = BaseScript.__ScriptEnvObj(member)
+        if guild := context.get("guild"): context["guild"] = BaseScript.__ScriptEnvObj(guild)
+        if interaction := context.get("interaction"): context["interaction"] = BaseScript.__ScriptEnvObj(interaction)
+
         return context
 
     @abstractmethod
-    def compile(self, content: str) -> 'BaseScript':
-        pass
+    def compile(self, guild_id: int, content: str) -> 'BaseScript':
+        self.code = content
 
     @abstractmethod
     async def execute(self, guild_id: int, context: dict) -> Any:
         self["guild_id"] = guild_id
+        self["async_events"] = self.engine.async_events.get(guild_id, {})
 
 
 class LuaScript(BaseScript):
     """Обработчик Lua-скриптов"""
     lang = "lua"
 
-    def compile(self, content: str) -> 'LuaScript':
+    def compile(self, guild_id: int, content: str) -> 'LuaScript':
+        super().compile(guild_id, content)
         loader = self.engine.lua_runtime.eval('''
             function(env, code)
                 local chunk, err = load(code, nil, 't', env)
@@ -157,46 +176,75 @@ class PythonScript(BaseScript):
     """Обработчик Python-скриптов"""
     lang = "py"
 
-    def compile(self, content: str) -> 'PythonScript':
-        exec(
-            self.normalize(content),
-            self.code_env
-        )
-
+    def compile(self, guild_id: int, content: str) -> 'PythonScript':
+        code = self.normalize(guild_id, content)
+        self._validate_syntax(code)
+        super().compile(guild_id, code)
+        exec(code, self.code_env)
         self._update_main_func()
         return self
 
-    iter = 0
-
-    def normalize(self, context: str) -> str:
+    def normalize(self, guild_id: int, context: str) -> str:
         context = context.replace("from bot.script_evs import *", "")
         context = context.replace("GuardBot", "Any")
 
         new_content = ""
         for line in context.split("\n"):
-            if line.startswith("import"):
+            if "import" in line:
+                if "__import__" in line:
+                    raise ImportError(f"Not allow builtins: __import__")
+
                 data = line.split()
 
-                l = len(data)
-                if l != 2 or (l != 4 and "as" not in line):
-                    raise ImportError(f"Not allow import in script: {line}")
+                if not self.engine.scripts.get(guild_id, {}).get(data[1]):
+                    raise ImportError(f"Not allow import: {data[1]}.\nCan import only scripts")
 
-                new_content += f"include(\"{data[1]}\", " + (
-                    f"\"{data[3]}\"" if "as" in line else "None"
-                ) + ")" + "\n"
-                continue
+                l = len(data)
+                if l == 2:
+                    line = f"include(\"{data[1]}\")\n"
+                elif l == 4:
+                    line = f"include(\"{data[1]}\", \"{data[3]}\")\n"
 
             new_content += line + "\n"
 
-        # with open(f"__test__\\scripts\\script{PythonScript.iter}.py", mode="w", encoding="utf-8") as f:
-        #     f.write(new_content)
-        #     PythonScript.iter += 1
-
         return new_content
+
+    @staticmethod
+    def _validate_syntax(code: str) -> None:
+        """AST-валидация с разрешением асинхронных конструкций"""
+        forbidden_nodes = (
+            ast.ImportFrom,
+            ast.Import,
+            ast.Lambda,
+            ast.With,
+            # Добавляем исключения для async/await
+        )
+
+        for node in ast.walk(ast.parse(code)):
+            if isinstance(node, forbidden_nodes):
+                if isinstance(node, ast.Call):
+                    func_name = getattr(node.func, 'id', '')
+                    if func_name in ('eval', 'exec', 'open'):
+                        raise SyntaxError(f"Dangerous function: {func_name}")
+                else:
+                    raise SyntaxError(f"Forbidden: {type(node).__name__}")
+
+            # Разрешаем async def и await
+            if isinstance(node, ast.AsyncFunctionDef):
+                pass  # Явно разрешаем
+            if isinstance(node, ast.Await):
+                pass  # Явно разрешаем
 
     async def execute(self, guild_id: int, context: dict) -> Any:
         await super().execute(guild_id, context)
-        return await self.main_func(**self.create_safe_context(context))
+        try:
+            return await asyncio.wait_for(
+                self.main_func(**self.create_safe_context(context)),
+                timeout=self.engine.script_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Script timeout: {self.engine.script_timeout}s")
+            raise
 
 
 class ScriptEngine(commands.Cog):
@@ -217,9 +265,11 @@ class ScriptEngine(commands.Cog):
 
         self.script_timeout = script_timeout
 
+        self.async_events: dict[int, dict[str, asyncio.Event]] = {}
+
     async def _get_server_scripts(self, guild_id: int) -> dict:
         if guild_id not in self.scripts:
-            server, _ = await self.bot.db.get_server(guild_id)
+            server, _ = await self.bot.db.get_server(guild_id=guild_id)
             self.scripts[guild_id] = {
                 script.name: script
                 for script in await server.scripts.filter(is_active=True)
@@ -254,6 +304,7 @@ class ScriptEngine(commands.Cog):
 
                 self.scripts[script.server.guild_id].update(
                     self._compile_script(
+                        script.server.guild_id,
                         LuaScript if script.type == 'lua' else PythonScript,
                         script.name,
                         script.content
@@ -280,6 +331,7 @@ class ScriptEngine(commands.Cog):
 
                     self.scripts[None].update(
                         self._compile_script(
+                            None,
                             LuaScript if script_path.suffix == '.lua' else PythonScript,
                             script_path.stem,
                             content
@@ -296,13 +348,13 @@ class ScriptEngine(commands.Cog):
 
     def _compile_script(
             self,
+            guild_id: int,
             script_type: Type[BaseScript],
             name: str,
             content: str
     ) -> dict:
         """Компиляция отдельного скрипта"""
-        script = script_type(self).compile(content)
-        return {name: script}
+        return {name: script_type(self).compile(guild_id, content)}
 
     async def get_script(self, guild_id: int, name: str) -> BaseScript:
         script_field = self.scripts.get(guild_id)
@@ -327,3 +379,20 @@ class ScriptEngine(commands.Cog):
 async def setup(bot: GuardBot):
     logger.debug(f"⚙️ ScriptEngine loading")
     await bot.add_cog(ScriptEngine(bot))
+
+
+if __name__ == "__main__":
+    eng = ScriptEngine(None)
+    eng.scripts[None] = {"Some2": object()}
+    scr = PythonScript(eng).compile(None, """
+
+class Some():
+    prop: int = 0
+    
+async def main(*, bot: GuardBot, member: discord.Member):
+    channel = await bot.fetch_channel(123)
+    await channel.send(f"Hello {member.mention}!")
+    await asyncio.sleep(1)
+    return "Done"
+""")
+    print(scr.code)

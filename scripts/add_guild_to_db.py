@@ -3,20 +3,16 @@ from bot.script_evs import *
 
 async def add_users(bot: GuardBot, interaction: discord.Interaction):
     for user in interaction.guild.members:
-        server = await bot.db.get_server(interaction.guild_id)
+        server = await bot.db.get_server(guild_id=interaction.guild_id)
         db_user = await bot.db.get_user(server=server, user_id=user.id)
 
         if db_user: continue
 
         await bot.db.save_user(
-            interaction.guild_id,
-            user.id,
-            user.name,
-            ""
+            guild_id=interaction.guild_id,
+            user_id=user.id
         )
     await interaction.channel.send("Users added to DataBase")
-
-    await bot.script_eng.execute("add_bot_dev_users", None, interaction=interaction)
 
 
 async def main(*, bot: GuardBot, interaction: discord.Interaction):
@@ -25,8 +21,7 @@ async def main(*, bot: GuardBot, interaction: discord.Interaction):
     }
 
     server = await bot.db.save_server(
-        interaction.guild.id,
-        interaction.guild.name,
+        guild_id=interaction.guild.id,
         **kwargs
     )
 

@@ -20,3 +20,4 @@ normalize_response_reason = GuardBot.normalize_response_reason
 guild_id: int
 include: Callable[[str, Optional[str]], None]
 calculate: Callable[[str], float]
+async_events: dict[str, asyncio.Event]

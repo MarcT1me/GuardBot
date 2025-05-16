@@ -16,7 +16,7 @@ class EventCog(commands.Cog):
         if not guild:
             return event_name, None
 
-        server = await self.bot.db.get_server(guild.id)
+        server = await self.bot.db.get_server(guild_id=guild.id)
         return await self.bot.db.get_script(
             server=server, script_type="Python-default-event", script_name=event_name
         ), guild.id
@@ -41,6 +41,24 @@ class EventCog(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         script_name, guild_id = await self.get_event_script_name(None, "on_member_remove")
+        await self.bot.script_eng.execute(script_name, None,
+                                          member=member
+                                          )
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        # Проверяем, что pending изменился с True на False
+        if before.pending != after.pending:
+            await self.on_member_registered(after)
+        else:
+            script_name, guild_id = await self.get_event_script_name(None, "on_member_update")
+            await self.bot.script_eng.execute(script_name, None,
+                                              before=before,
+                                              after=after
+                                              )
+
+    async def on_member_registered(self, member: discord.Member):
+        script_name, guild_id = await self.get_event_script_name(None, "on_member_registered")
         await self.bot.script_eng.execute(script_name, None,
                                           member=member
                                           )

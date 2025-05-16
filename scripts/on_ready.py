@@ -21,5 +21,5 @@ async def main(*, bot: GuardBot, guild: discord.Guild):
     if guild.id == 957269545326891028:
         if "EliteGuardionCog" in bot.cogs:
             await bot.remove_cog("EliteGuardionCog", guild=guild)
-        await bot.add_cog(EliteGuardionCog(bot), guild=guild)
+        await bot.add_cog(EliteGuardionCog(bot), override=True, guild=guild)
         await bot.tree.sync(guild=guild)
