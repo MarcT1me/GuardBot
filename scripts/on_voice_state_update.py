@@ -14,8 +14,8 @@ async def get_embed(bot: GuardBot, server, member: discord.Member,
         timestamp=datetime.datetime.now()
     )
 
-    parts = template.content.split("\\")
-    for i, part in enumerate(parts):
+    parts: list[str] = template.content.split("\\")
+    for i, part in iterate(parts):
         part = part.format(member=member, **kwargs)
         if i == 0:
             embed.title = part

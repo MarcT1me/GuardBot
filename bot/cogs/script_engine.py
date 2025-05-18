@@ -1,6 +1,7 @@
-from typing import Any, Type, Callable, Optional
+from typing import Any, Type, Callable, Optional, Iterable, Iterator
 from abc import ABC, abstractmethod
 from pathlib import Path
+import warnings
 
 import asyncio
 import datetime
@@ -24,17 +25,52 @@ class BaseScript(ABC):
     lang = None
 
     class __ScriptEnvObj:
-        def __init__(self, obj: object, excepts: tuple[str] = ()):
-            for name, value in {
-                attr: getattr(obj, attr)
-                for attr in dir(obj)
-                if not attr.startswith('_') and attr not in excepts and hasattr(obj, attr)
-            }.items(): setattr(self, name, value)
+        def __init__(self, obj: object, /, include_all: bool = True, **filter):
+            for name, value in self.__iter__names(obj, include_all, **filter):
+                setattr(self, name, value)
+
+        def __iter__names(self, obj: object, include_all: bool, **filter) -> Iterator[tuple[str, object]]:
+            for attr in dir(obj):
+                condition: bool = False
+                try:
+                    condition = not attr.startswith('_') and attr not in filter and hasattr(obj, attr)
+                    condition = condition if include_all else not condition
+                except DeprecationWarning:
+                    condition = False
+                finally:
+                    if condition:
+                        yield attr, getattr(obj, attr)
+
+    @staticmethod
+    def calculate(expr: str) -> float:
+        try:
+            # Ограничиваем доступ только к математическим функциям
+            return eval(
+                expr,
+                {"__builtins__": None},  # Блокируем все встроенные функции
+                {
+                    "math": {attr: getattr(math, attr)
+                             for attr in dir(math)
+                             if not attr.startswith('_')}  # Только публичные методы
+                }
+            )
+        except Exception as e:
+            raise ValueError(f"Calculation Error: {str(e)}")
+
+    @staticmethod
+    def iterate[T](expr: Iterable[T]) -> Iterator[tuple[int, T]]:
+        for i, value in enumerate(expr):
+            yield i, value
+
+    def include(self, script_name: str, as_name: str = None) -> None:
+        include_script = self.engine.get_script(self["guild_id"], self.code_env)
+        if as_name is None: as_name = script_name
+        self[as_name] = include_script
 
     __script_env = {
         "__builtins__": safe_builtins,
 
-        "discord": __ScriptEnvObj(discord, excepts=("ext", "Object")),
+        "discord": __ScriptEnvObj(discord, ext=False, Object=False),
         "Cog": commands.Cog,
         "app_commands": __ScriptEnvObj(discord.app_commands),
 
@@ -52,6 +88,9 @@ class BaseScript(ABC):
         "normalize_response_size": GuardBot.normalize_response_size,
         "normalized_reason": GuardBot.normalized_reason,
         "normalize_response_reason": GuardBot.normalize_response_reason,
+
+        "calculate": calculate,
+        "iterate": iterate
     }
     __script_env.get("__builtins__", {}).update(**safe_builtins)
     __script_env.get("__builtins__", {})["__name__"] = __name__
@@ -71,7 +110,6 @@ class BaseScript(ABC):
 
             "guild_id": None,
             "include": self.include,
-            "calculate": self.safe_calculate,
         }.items(): self[name] = value
 
         self.main_func: Callable = None
@@ -102,34 +140,17 @@ class BaseScript(ABC):
             if not asyncio.iscoroutinefunction(self.main_func):
                 raise TypeError("Main function must be async")
 
-    @staticmethod
-    def safe_calculate(expr: str) -> float:
-        try:
-            # Ограничиваем доступ только к математическим функциям
-            return eval(
-                expr,
-                {"__builtins__": None},  # Блокируем все встроенные функции
-                {
-                    "math": {attr: getattr(math, attr)
-                             for attr in dir(math)
-                             if not attr.startswith('_')}  # Только публичные методы
-                }
-            )
-        except Exception as e:
-            raise ValueError(f"Calculation Error: {str(e)}")
-
-    def include(self, script_name: str, as_name: str = None) -> None:
-        include_script = self.engine.get_script(self["guild_id"], self.code_env)
-        if as_name is None: as_name = script_name
-        self[as_name] = include_script
-
     def create_safe_context(self, context: dict) -> dict:
         context["bot"] = BaseScript.__ScriptEnvObj(self.engine.bot)
 
-        if msg := context.get("msg"): context["msg"] = BaseScript.__ScriptEnvObj(msg)
-        if member := context.get("member"): context["member"] = BaseScript.__ScriptEnvObj(member)
-        if guild := context.get("guild"): context["guild"] = BaseScript.__ScriptEnvObj(guild)
-        if interaction := context.get("interaction"): context["interaction"] = BaseScript.__ScriptEnvObj(interaction)
+        if msg := context.get("msg"):
+            context["msg"] = BaseScript.__ScriptEnvObj(msg, interaction=False)
+        if member := context.get("member"):
+            context["member"] = BaseScript.__ScriptEnvObj(member, interaction=False)
+        if guild := context.get("guild"):
+            context["guild"] = BaseScript.__ScriptEnvObj(guild, interaction=False)
+        if interaction := context.get("interaction"):
+            context["interaction"] = BaseScript.__ScriptEnvObj(interaction)
 
         return context
 

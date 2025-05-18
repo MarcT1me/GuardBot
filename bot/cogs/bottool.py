@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from pprint import pformat
 import json
@@ -131,33 +132,71 @@ class BotToolCog(commands.Cog):
 
     @app_commands.command(name="restart_bot")
     @GuardBot.error_handler()
-    async def restart_bot(self, interaction: discord.Interaction):
-        await self._stop_bot(interaction)
-        GuardBot.is_restart = True
-
-    @app_commands.command(name="close_bot")
-    @GuardBot.error_handler()
-    async def close_bot(self, interaction: discord.Interaction):
+    async def restart_bot(self, interaction: discord.Interaction, time: int = 0, interval: int = 600):
         passed = await self.bot.check_botdev(interaction)
         if not passed:
             return await interaction.response.send_message(  # type: ignore
                 "GET OF FUCK OUT!!! 🤬🤬🤬"
             )
 
+        await interaction.response.defer()  # type: ignore
+
+        if time > 0:
+            await self._wait_any(
+                interaction,
+                wait_time=time, interval_size=interval,
+                plan_message=f"Запланирован рестарт через {time} секунд. "
+                             f"ЭТО ДЕЙСТВИЕ НЕВОЗМОЖНО ОТМЕНИТЬ!",
+                passed_time_message="До рестарта осталось {stell}с"
+            )
+
+        await self._stop_bot(interaction)  # type: ignore
+        GuardBot.is_restart = True
+
+    @app_commands.command(name="close_bot")
+    @GuardBot.error_handler()
+    async def close_bot(self, interaction: discord.Interaction, time: int = 0, interval: int = 600):
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
+
+        await interaction.response.defer()  # type: ignore
+
+        if time > 0:
+            await self._wait_any(
+                interaction,
+                wait_time=time, interval_size=interval,
+                plan_message=f"Запланировано завершение работы через {time} секунд. "
+                             f"ЭТО ДЕЙСТВИЕ НЕВОЗМОЖНО ОТМЕНИТЬ!",
+                passed_time_message="Осталось {stell}с перед завершением работы"
+            )
+
         await self._stop_bot(interaction)
         sys_exit(0)
 
-    async def _stop_bot(self, interaction):
-        await interaction.channel.send(
-            "💤 Try to stop bot working"
+    @staticmethod
+    async def _wait_any(interaction: discord.Interaction,
+                        wait_time: int, interval_size: int,
+                        plan_message: str, passed_time_message: str):
+        await interaction.followup.send(  # type: ignore
+            plan_message
+        )
+        for sec in range(0, wait_time, interval_size):
+            await asyncio.sleep(interval_size)
+            await interaction.followup.send(  # type: ignore
+                passed_time_message.format(wait_time=wait_time, sec=sec, stell=wait_time - sec)
+            )
+
+    async def _stop_bot(self, interaction: discord.Interaction):
+        await interaction.followup.send(
+            "💤 Trying to stop bot working"
         )
         await self.bot.close()
 
         try:
-            await interaction.response.send_message(  # type: ignore
-                "⚠️ Command did`nt stop bot working",
-                ephemeral=True
-            )
+            await interaction.followup.send("⚠️ Command did`nt stop bot working")
         except:
             pass
 
@@ -223,6 +262,12 @@ class BotToolCog(commands.Cog):
             from_db: bool = False,
             kwargs: str = ""
     ):
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬"
+            )
+
         await interaction.response.defer()  # type: ignore
 
         try:

@@ -2,6 +2,7 @@ from threading import Thread
 from typing import Optional
 import os
 import asyncio
+from time import time as _uix_time
 
 import discord
 from discord import FFmpegOpusAudio, FFmpegPCMAudio
@@ -147,7 +148,9 @@ class TrackSource(BaseTrack):
 
         try:
             if self._download_thread: self._download_thread.join()
-            self.source = FFmpegOpusAudio(self.filename)
+            self.source = FFmpegOpusAudio(
+                self.filename
+            )
         except Exception as e:
             logger.error(f"Failed to create audio source: {str(e)}")
             raise
@@ -393,7 +396,12 @@ class VoiceCog(commands.Cog):
         self.bot = bot
         self.voice_state_manager = VoiceStateManager()
 
-        self.execute_voice = True
+        self.execution_pause_time = 0
+        self.execution_paused_time_passed = 0
+
+    @property
+    def execution_paused_time_still(self):
+        return self.execution_pause_time - self.execution_paused_time_passed
 
     async def disconnect_all(self):
         for guild in self.bot.guilds:
@@ -407,9 +415,17 @@ class VoiceCog(commands.Cog):
                 await guild.get_channel(db_channel.id).delete(reason="channel auto-delete (disconnect_all)")
                 await db_channel.delete()
 
-    @app_commands.command(name="join", description="connect to your channel")
+    @app_commands.command(name="join", description="подключиться к вашему каналу")
+    @app_commands.describe(force="Если поставить True - перейду в ваш канал при любых обстоятельствах")
     @GuardBot.error_handler()
     async def join(self, interaction: discord.Interaction, force: bool = False):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -442,9 +458,17 @@ class VoiceCog(commands.Cog):
                 f"Зашёл в канал: {user_voice.channel.mention}."
             )
 
-    @app_commands.command(name="disconnect", description="disconnect from your channel")
+    @app_commands.command(name="disconnect", description="отключиться от канала")
+    @app_commands.describe(force="Если поставить True - выйду из канала в любом случае")
     @GuardBot.error_handler()
     async def disconnect(self, interaction: discord.Interaction, force: bool = False):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not force and not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -482,9 +506,20 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="play", description="play YouTube url now")
+    @app_commands.command(name="play", description="проигрывает YouTube ссылку без очереди")
+    @app_commands.describe(
+        url="ссылка для проигрывания",
+        with_download="если поставить True - кеширует видео, что удлиняет загрузку, но уменьшает лаги"
+    )
     @GuardBot.error_handler(is_defer=True)
     async def play(self, interaction: discord.Interaction, url: str, with_download: bool = False):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -525,9 +560,20 @@ class VoiceCog(commands.Cog):
 
             await self._play_audio_main(interaction, voice_state, url, with_download)
 
-    @app_commands.command(name="add_track", description="add YouTube url in queue")
+    @app_commands.command(name="add_track", description="добавляет YouTube ссылку в очередь")
+    @app_commands.describe(
+        url="ссылка что я должен добавить в очередь",
+        with_download="если поставить True - кеширует видео, что удлиняет загрузку, но уменьшает лаги"
+    )
     @GuardBot.error_handler(is_defer=True)
     async def add_track(self, interaction: discord.Interaction, url: str, with_download: bool = False):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -560,9 +606,17 @@ class VoiceCog(commands.Cog):
 
             await self._play_audio_main(interaction, voice_state, url, with_download)
 
-    @app_commands.command(name="remove_track", description="remove track from queue")
+    @app_commands.command(name="remove_track", description="удаляет трек из очереди")
+    @app_commands.describe(index="номер трека в очереди (индексация с 1)")
     @GuardBot.error_handler()
     async def remove_track(self, interaction: discord.Interaction, index: int = 0):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -724,7 +778,7 @@ class VoiceCog(commands.Cog):
                 if added % 5 == 0:
                     content = f"✅ Добавлено {added}/{total} треков"
                     if not load_message:
-                        if not self.execute_voice: break
+                        if self.execution_pause_time: break
 
                         load_message = await interaction.channel.send(content)
                         if not voice_state.is_playing:
@@ -748,9 +802,16 @@ class VoiceCog(commands.Cog):
         if not voice_state.is_playing:
             await voice_state.play_next(interaction)
 
-    @app_commands.command(name="play_next", description="skip playing track")
+    @app_commands.command(name="play_next", description="пропускает трек")
     @GuardBot.error_handler()
     async def play_next(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -787,9 +848,16 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="pause", description="pause playing")
+    @app_commands.command(name="pause", description="just пауза")
     @GuardBot.error_handler()
     async def pause(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -822,9 +890,16 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="resume", description="resume playing")
+    @app_commands.command(name="resume", description="just продолжить")
     @GuardBot.error_handler()
     async def resume(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -857,9 +932,16 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="stop", description="stop playing")
+    @app_commands.command(name="stop", description="останавливает трек")
     @GuardBot.error_handler()
     async def stop(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -887,9 +969,16 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="stop_all", description="atop playing and clear queue")
+    @app_commands.command(name="stop_all", description="останавливает всё и играемый трек и очередь")
     @GuardBot.error_handler()
     async def stop_all(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -924,7 +1013,7 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="show_queue", description="show audio queue")
+    @app_commands.command(name="show_queue", description="показывает очередь проигрывания")
     @GuardBot.error_handler()
     async def show_queue(self, interaction: discord.Interaction):
         user_voice = interaction.user.voice
@@ -973,9 +1062,16 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="clear_queue", description="clear audio queue")
+    @app_commands.command(name="clear_queue", description="очищает только очередь проигрываний")
     @GuardBot.error_handler()
     async def clear_queue(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
@@ -1009,7 +1105,9 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="stop_voce_commands", description="clear audio queue")
+    @app_commands.command(name="stop_voce_commands",
+                          description="(BETA) останавливает выполнение части звуковых команд")
+    @app_commands.describe(time="время на которое блокируются все войс команды (поыторый вызов перезаписывает время)")
     @GuardBot.error_handler()
     async def stop_voce_commands(self, interaction: discord.Interaction, time: float = 1.0):
         user_voice = interaction.user.voice
@@ -1029,13 +1127,23 @@ class VoiceCog(commands.Cog):
                     ephemeral=True
                 )
             else:
+                await interaction.response.defer()  # type: ignore
+
                 await interaction.followup.send(  # type: ignore
                     "Останавливаю все войс команды"
                 )
 
-                self.execute_voice = False
-                await asyncio.sleep(time)
-                self.execute_voice = True
+                self.execution_pause_time = time
+                start_time = _uix_time()
+                while self.execution_pause_time:
+                    cur_time = _uix_time()
+                    erl = cur_time - start_time
+                    if erl >= time:
+                        self.execution_paused_time_passed = 0
+                        self.execution_pause_time = 0
+                    else:
+                        self.execution_paused_time_passed = erl
+                    await asyncio.sleep(1)
 
                 await interaction.followup.send(  # type: ignore
                     "Время прошло, можно снова использовать войс команды"

@@ -38,7 +38,15 @@ class ModerationCog(commands.Cog):
         """Приведение имени канала к правильному формату"""
         return name.strip().lower().replace(' ', '-')[:100]
 
-    @app_commands.command(name="add_role", description="Выдаёт участнику роль")
+    @app_commands.command(
+        name="add_role",
+        description="Выдаёт участнику роль"
+    )
+    @app_commands.describe(
+        member="кому выдать?",
+        role="какую роль выдать?",
+        reason="Зачем?"
+    )
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_roles=True)
     async def add_role(
@@ -67,7 +75,15 @@ class ModerationCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="del_role", description="Убирает у участника роль")
+    @app_commands.command(
+        name="del_role",
+        description="Убирает у участника роль"
+    )
+    @app_commands.describe(
+        member="кому убрать?",
+        role="какую роль убрать?",
+        reason="почему?"
+    )
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_roles=True)
     async def del_role(
@@ -96,7 +112,16 @@ class ModerationCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="create_channel", description="Создаёт канал указанного типа")
+    @app_commands.command(
+        name="create_channel",
+        description="Создаёт канал указанного типа"
+    )
+    @app_commands.describe(
+        channel_name="Какое имя дать каналу?",
+        category="В какую категорию поместить?",
+        channel_type="Какого типа канал создавать?",
+        reason="Зачем?"
+    )
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_channels=True)
     async def create_channel(
@@ -155,7 +180,14 @@ class ModerationCog(commands.Cog):
             GuardBot.normalize_response_reason(f"✅ Канал {new_channel.mention} создан", reason)
         )
 
-    @app_commands.command(name="delete_channel", description="Удаляет текстовый канал")
+    @app_commands.command(
+        name="delete_channel",
+        description="Удаляет текстовый канал"
+    )
+    @app_commands.describe(
+        channel="какой канал удалять?",
+        reason="зачем?",
+    )
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_channels=True)
     async def delete_channel(
@@ -171,7 +203,14 @@ class ModerationCog(commands.Cog):
             GuardBot.normalize_response_reason(f"✅ Канал `{channel.name}` удалён", reason)
         )
 
-    @app_commands.command(name="kick", description="Выгоняет участника")
+    @app_commands.command(
+        name="kick",
+        description="Выгоняет участника"
+    )
+    @app_commands.describe(
+        member="Кого выгнать?",
+        reason="зачем?",
+    )
     @GuardBot.error_handler()
     @GuardBot.has_permission(administration=True)
     async def kick(

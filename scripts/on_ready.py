@@ -8,6 +8,7 @@ class EliteGuardionCog(Cog):
         logger.success("Setup guild only cog")
 
     @app_commands.command(name="test_cmd", description="command only for EliteGuardion")
+    @app_commands.describe(member="test member for output")
     async def test_cmd(self, interaction: discord.Interaction, member: discord.Member):
         await interaction.channel.send(
             f"ХУЙ, {member.mention}",

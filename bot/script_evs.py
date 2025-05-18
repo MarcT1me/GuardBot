@@ -6,7 +6,11 @@ import datetime
 import asyncio
 import random
 
-from typing import Callable, Optional, Any
+from typing import (
+    Callable, Optional, Any,
+    Iterable as _Iterable,
+    Iterator as _Iterator,
+)
 from loguru import logger
 
 from bot import GuardBot
@@ -21,3 +25,6 @@ guild_id: int
 include: Callable[[str, Optional[str]], None]
 calculate: Callable[[str], float]
 async_events: dict[str, asyncio.Event]
+
+
+def iterate[T](expr: _Iterable[T]) -> _Iterator[tuple[int, T]]: pass
