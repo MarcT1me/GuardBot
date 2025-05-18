@@ -25,19 +25,29 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
             )
         except Exception as e:
             await system_channel.send(
-                f"У меня не получилось обработать прощание с {member.mention}"
+                f"У меня не получилось обработать приветствие с {member.mention}"
             )
             logger.exception(f"User greeting error: {e}")
 
     event = asyncio.Event()
-    async_events[f"on_member_{member_id}"] = event
+    name = f"on_member_{member.id}"
+    set_async_event(name, event)
+    logger.info(name + " " + str(event))
 
     try:
-        await asyncio.wait_for(event.wait(), timeout=600)
+        await asyncio.wait_for(event.wait(), timeout=30)
     except asyncio.TimeoutError:
-        await guild.kick(member, reason="reg timeout")
-        return await member.send(
-            "You didn't accept the rules within 10 minutes"
+        # await guild.kick(member, reason="reg timeout")
+        await member.send(
+            "You didn't accept the rules within 10 minutes (BETA)\n"
+            "Please excuse me if this is a false alarm. If for some reason you have been removed from the server, "
+            "try to contact the server administration.\n"
+            "\n"
+            "Вы не согласились с ролями в течении 10 минут (БЕТА)\n"
+            "Просим извинить если это ложное срабатывание. Если по какой-то причине вас удалило с сервера"
+            "попытайтесь связаться с администрацией сервера.\n"
+            "\n"
+            "P.S. for more information write - @mt_proger"
         )
 
     try:

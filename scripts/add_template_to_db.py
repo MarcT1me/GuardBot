@@ -1,4 +1,7 @@
-async def main(*, bot, interaction):
+from bot.script_evs import *
+
+
+async def main(*, bot, interaction: discord.Interaction):
     guild = interaction.guild
 
     templates = [

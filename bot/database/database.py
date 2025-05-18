@@ -21,6 +21,7 @@ class GuardDatabase(Database):
 
     server = Server
 
+    user = User
     script = Script
     role = Role
     channel = Channel
@@ -44,7 +45,7 @@ class GuardDatabase(Database):
 
     @classmethod
     async def save_server(cls, *, guild_id: int,
-                        is_active: bool = False,
+                          is_active: bool = False,
                           **additions) -> Server:
         server, _ = await Server.update_or_create(
             guild_id=guild_id,
@@ -75,15 +76,15 @@ class GuardDatabase(Database):
         return user
 
     @classmethod
-    async def remove_user(cls, *, server: Server, user_id: int):
-        return User.filter(server=server, user_id=user_id).delete()
+    async def remove_user(cls, *, server: Server, user_id: int) -> None:
+        await User.filter(server=server, user_id=user_id).delete()
 
     @classmethod
-    async def get_script(cls, *, server: Server, script_type, script_name: str) -> Script:
+    async def get_script(cls, *, server: Server, script_type, script_name: str) -> Script | None:
         return await Script.get_or_none(server=server, type=script_type, name=script_name)
 
     @classmethod
-    async def get_script_by_id(cls, *, script_id: int) -> Script:
+    async def get_script_by_id(cls, *, script_id: int) -> Script | None:
         return await Script.get_or_none(id=script_id)
 
     @classmethod
@@ -112,7 +113,7 @@ class GuardDatabase(Database):
         return await Channel.filter(server=server, type=channel_type)
 
     @classmethod
-    async def get_channel_by_id(cls, *, channel_id):
+    async def get_channel_by_id(cls, *, channel_id) -> Channel | None:
         return await Channel.get_or_none(id=channel_id)
 
     @classmethod
@@ -161,11 +162,11 @@ class GuardDatabase(Database):
         await Channel.filter(id=channel_id).delete()
 
     @classmethod
-    async def get_template(cls, *, server: Server, template_name: str) -> Template:
+    async def get_template(cls, *, server: Server, template_name: str) -> Template | None:
         return await Template.get_or_none(server=server, name=template_name)
 
     @classmethod
-    async def get_template_by_id(cls, *, template_id: int) -> Template:
+    async def get_template_by_id(cls, *, template_id: int) -> Template | None:
         return await Template.get_or_none(id=template_id)
 
     @classmethod

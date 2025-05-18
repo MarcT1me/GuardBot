@@ -392,9 +392,9 @@ class VoiceStateManager:
 
 
 class VoiceCog(commands.Cog):
-    def __init__(self, bot: GuardBot):
+    def __init__(self, bot: GuardBot, voice_state_manager: VoiceStateManager):
         self.bot = bot
-        self.voice_state_manager = VoiceStateManager()
+        self.voice_state_manager: VoiceStateManager = voice_state_manager
 
         self.execution_pause_time = 0
         self.execution_paused_time_passed = 0
@@ -1173,4 +1173,9 @@ class VoiceCog(commands.Cog):
 
 async def setup(bot: GuardBot):
     logger.debug(f"⚙️ VoiceCog loading")
-    await bot.add_cog(VoiceCog(bot))
+    await bot.add_cog(
+        VoiceCog(
+            bot,
+            VoiceStateManager()
+        )
+    )

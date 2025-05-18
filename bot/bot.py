@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+import asyncio
 from functools import wraps
 from pathlib import Path
 
@@ -21,7 +23,7 @@ class GuardBot(commands.Bot):
     instance: 'GuardBot' = None
     is_restart: bool = False
 
-    bot_dev_users = [805395077496832011, 1226073097136771135]
+    _bot_dev_users = [805395077496832011, 1226073097136771135]
 
     def __new__(cls, *args, **kwargs):
         if not cls.instance:
@@ -38,6 +40,11 @@ class GuardBot(commands.Bot):
             intents=intents
         )
         self.db = database
+
+        self._cog_loading_event = asyncio.Event()
+        self._condition = asyncio.Condition()
+        self._max_completed_index = -1
+        self._cog_ready_counter = 0
 
     @staticmethod
     def normalize_response_reason(response: str, reason: str) -> str:
@@ -148,7 +155,7 @@ class GuardBot(commands.Bot):
 
     async def check_botdev(self, interaction: discord.Interaction) -> bool:
         # Используем await и новый метод из GuardDatabase
-        if interaction.user.id in self.bot_dev_users: return True
+        if interaction.user.id in self._bot_dev_users: return True
         return False
 
     @property
@@ -166,15 +173,14 @@ class GuardBot(commands.Bot):
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
         await self.db.connect()
-        await self._load_cogs()
-        await self.tree.sync()
+        await self.load_cogs()
 
     @commands.Cog.listener()
     async def on_ready(self):
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
         await self.tree.sync()
 
-    async def _load_cogs(self) -> None:
+    async def load_cogs(self) -> None:
         """Загрузка всех когов из папки cogs"""
 
         for cog_name in self.cog_names():
@@ -184,29 +190,60 @@ class GuardBot(commands.Bot):
             except Exception as e:
                 logger.error(f"❌ Error loading {cog_name}: {e}\n")
 
-    async def re_load_cogs(self, cog_names: list[str] | None = None):
-        """Перезагружает коги (все или указанные) без перезапуска бота"""
+        self._cog_loading_event.set()
 
+    async def load_extension(self, name: str, *args, **kwargs) -> None:
+        try:
+            await super().load_extension(name, *args, **kwargs)
+            await self.on_cog_loaded()
+        except Exception as e:
+            logger.exception(f"Failed to load {name}: {e}")
+
+    async def on_cog_loaded(self):
+        async with self._condition:
+            self._cog_ready_counter += 1
+
+    @asynccontextmanager
+    async def wait_for_cog_loading(self, index: int):
+        await self._cog_loading_event.wait()
+        async with self._condition:
+            await self._condition.wait_for(lambda: self._max_completed_index >= index - 1)
+            try:
+                yield
+            finally:
+                if index > self._max_completed_index:
+                    self._max_completed_index = index
+                self._condition.notify_all()
+
+    async def unload_cogs(self, cog_names: list[str] | None = None):
         if cog_names is None or "VoiceCog" in cog_names:
             await self.voice_cog.disconnect_all()
 
         for cog_name in self.cog_names() if not cog_names else cog_names:
             try:
                 if cog_name in self.extensions:
-                    await self.unload_extension(cog_name)  # Выгружаем старую версию
-                    await self.load_extension(cog_name)  # Загружаем обновленную
-                    logger.success(f"♻️ Cog reloaded: {cog_name}")
-                else:
-                    await self.load_extension(cog_name)
-                    logger.success(f"✅ New cog loaded: {cog_name}")
+                    await self.unload_extension(cog_name)
+                    logger.success(f"♻️ Cog unloaded: {cog_name}")
             except Exception as e:
-                logger.error(f"🔥 Failed to reload {cog_name}: {e}")
+                logger.exception(f"🔥 Failed to unload {cog_name}: {e}")
                 continue
+
+    async def reload_cogs(self, cog_names: list[str] | None = None):
+        await self.unload_cogs(cog_names)
+        await self.load_cogs()
+
+        for cog_name in self.cog_names() if not cog_names else cog_names:
+            cog = self.get_cog(cog_name)
+            if (
+                    cog
+                    and hasattr(cog, "on_ready")
+                    and hasattr(cog, "_is_ready") and not getattr(cog, "_is_ready")
+            ):
+                await cog.on_ready()
 
         if cog_names is None or "ScriptEngine" in cog_names:
             await self.script_eng.on_ready()
 
-        # Синхронизация команд с серверами Discord
         await self.tree.sync()
 
     async def start(self, *args, **kwargs) -> None:

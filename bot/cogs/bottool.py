@@ -47,7 +47,7 @@ class ExecutorSeance:
 
     async def execute(self, guild_id: int, code: str, **context) -> any:
         try:
-            script = PythonScript(self.bot.script_eng).compile(guild_id, code)
+            script = PythonScript(self.bot.script_eng).compile(guild_id, code, "botdev_seance")
             script.code_env.update(**self.env)
 
             ret = await script.execute(guild_id, context)
@@ -186,7 +186,7 @@ class BotToolCog(commands.Cog):
         for sec in range(0, wait_time, interval_size):
             await asyncio.sleep(interval_size)
             await interaction.followup.send(  # type: ignore
-                passed_time_message.format(wait_time=wait_time, sec=sec, stell=wait_time - sec)
+                passed_time_message.format(wait_time=wait_time, sec=sec, stell=wait_time - sec - interval_size)
             )
 
     async def _stop_bot(self, interaction: discord.Interaction):
@@ -252,7 +252,7 @@ class BotToolCog(commands.Cog):
             "🔁 Cogs reloading started"
         )
 
-        await self.bot.re_load_cogs()
+        await self.bot.reload_cogs()
 
     @app_commands.command(name="exec_script")
     @GuardBot.error_handler(is_defer=True)
