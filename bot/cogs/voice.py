@@ -411,9 +411,11 @@ class VoiceCog(commands.Cog):
                 await voice_state.disconnect()
 
             for db_channel in await self.bot.db.get_channels(
-                    server=await self.bot.db.get_server(guild_id=guild.id), channel_type="temp_voice"):
-                await guild.get_channel(db_channel.id).delete(reason="channel auto-delete (disconnect_all)")
+                    server=await self.bot.db.get_server(guild_id=guild.id), channel_type="temp_voice"
+            ):
                 await db_channel.delete()
+                if channel := guild.get_channel(db_channel.id):
+                    await channel.delete(reason="channel auto-delete (disconnect_all)")
 
     @app_commands.command(name="join", description="подключиться к вашему каналу")
     @app_commands.describe(force="Если поставить True - перейду в ваш канал при любых обстоятельствах")

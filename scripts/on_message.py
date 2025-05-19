@@ -1,7 +1,7 @@
 from bot.script_evs import *
 
 
-async def main(*, bot: GuardBot, msg: discord.Message):
+async def main(*, bot: Bot, msg: discord.Message):
     ret = msg.author.name + (
         f", server: `{msg.guild.name}`, channel: `{msg.channel.name}`"
         if msg.guild else

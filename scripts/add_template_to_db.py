@@ -1,9 +1,7 @@
 from bot.script_evs import *
 
 
-async def main(*, bot, interaction: discord.Interaction):
-    guild = interaction.guild
-
+async def main(*, bot: Bot, interaction: discord.Interaction):
     templates = [
         {
             "name": "greetings_list",
@@ -58,8 +56,7 @@ async def main(*, bot, interaction: discord.Interaction):
     ]
 
     for template_data in templates:
-        await bot.db.save_template(
-            server_id=guild.id,
+        await bot.guild.db.save_template(
             name=template_data["name"],
             content=template_data["content"]
         )

@@ -1,22 +1,19 @@
 from bot.script_evs import *
 
 
-async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int = None, **kwargs):
+async def main(*, bot: Bot, member: discord.Member = None, member_id: int = None, **kwargs):
     if member_id is not None:
-        guild = bot.get_guild(guild_id)
-        for member in guild.members:
+        for member in bot.guild.members:
             if member.id == member_id:
                 break
 
     if member.bot: return
 
     guild = member.guild
-    server: bot.db.server = await bot.db.get_server(guild_id=guild_id)
 
     if system_channel := guild.system_channel:
         try:
-            greetings_list_template: bot.db.template = await bot.db.get_template(
-                server=server,
+            greetings_list_template: ScriptDatabase.template = await bot.guild.db.get_template(
                 template_name="greetings_list"
             )
             greetings = random.choice(greetings_list_template.content.split("\\"))
@@ -31,7 +28,7 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
 
     event = asyncio.Event()
     name = f"on_member_{member.id}"
-    set_async_event(name, event)
+    bot.guild.set_async_event(name, event)
     logger.info(name + " " + str(event))
 
     try:
@@ -51,8 +48,7 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
         )
 
     try:
-        await bot.db.save_user(
-            guild_id=member.guild.id,
+        await bot.guild.db.save_user(
             user_id=member.id
         )
         logger.success(f"User {member.name} added to DataBase")
@@ -60,10 +56,9 @@ async def main(*, bot: GuardBot, member: discord.Member = None, member_id: int =
         logger.exception(f"User saving error: {e}")
 
     try:
-        title: bot.db.template = await bot.db.get_template(server=server, template_name="join_message_title")
-        description: bot.db.template = await bot.db.get_template(server=server,
-                                                                 template_name="join_message_description")
-        footer: bot.db.template = await bot.db.get_template(server=server, template_name="join_message_footer")
+        title: ScriptDatabase.template = await bot.guild.db.get_template(template_name="join_message_title")
+        description: ScriptDatabase.template = await bot.guild.db.get_template(template_name="join_message_description")
+        footer: ScriptDatabase.template = await bot.guild.db.get_template(template_name="join_message_footer")
 
         embed = discord.Embed(
             title=title.content.format(member=member),

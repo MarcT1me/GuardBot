@@ -1,22 +1,20 @@
 from bot.script_evs import *
 
 
-async def main(*, bot: GuardBot, member: discord.Member):
+async def main(*, bot: Bot, member: discord.Member):
     if member.bot: return
 
-    guild = bot.get_guild(guild_id)
-    server: bot.db.server = await bot.db.get_server(guild_id=guild_id)
+    guild = member.guild
 
     try:
-        await bot.db.remove_user(server=server, user_id=member.id)
+        await bot.guild.db.remove_user(user_id=member.id)
         logger.success(f"User {member.name} removed from DataBase")
     except Exception as e:
         logger.exception(f"User removing error: {e}")
 
     if system_channel := guild.system_channel:
         try:
-            farewell_list_template = await bot.db.get_template(
-                server=server,
+            farewell_list_template = await bot.guild.db.get_template(
                 template_name="farewell_list"
             )
             farewell = random.choice(farewell_list_template.content.split("\\"))

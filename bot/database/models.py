@@ -12,7 +12,7 @@ class Server(Model):
 class User(Model):
     id: int = fields.BigIntField(pk=True)
     user_id: int = fields.BigIntField()
-    server: Server = fields.ForeignKeyField('models.Server', related_name='server_users')
+    server = fields.ForeignKeyField('models.Server', related_name='server_users')
 
     roles: list = fields.JSONField(default=[])
     additions: dict = fields.JSONField(default={})  # any data
@@ -25,7 +25,7 @@ class User(Model):
 
 class Script(Model):
     id: int = fields.IntField(pk=True)
-    server: Server = fields.ForeignKeyField('models.Server', related_name='server_scripts')
+    server = fields.ForeignKeyField('models.Server', related_name='server_scripts')
 
     type: str = fields.CharField(max_length=50)
     name: str = fields.CharField(max_length=100)
@@ -43,7 +43,7 @@ class Script(Model):
 
 class Role(Model):
     id: int = fields.BigIntField(pk=True)
-    server: Server = fields.ForeignKeyField('models.Server', related_name='server_roles')
+    server = fields.ForeignKeyField('models.Server', related_name='server_roles')
 
     emoji_id: int = fields.BigIntField(null=True)
     is_active: bool = fields.BooleanField(default=False)
@@ -53,7 +53,7 @@ class Role(Model):
 
 class Channel(Model):
     id: int = fields.BigIntField(pk=True)
-    server: Server = fields.ForeignKeyField('models.Server', related_name='server_channels')
+    server = fields.ForeignKeyField('models.Server', related_name='server_channels')
 
     type: str = fields.CharField(max_length=50)
 
@@ -67,7 +67,7 @@ class Channel(Model):
 
 class Template(Model):
     id: int = fields.IntField(pk=True)
-    server: Server = fields.ForeignKeyField('models.Server', related_name='server_templates')
+    server = fields.ForeignKeyField('models.Server', related_name='server_templates')
 
     name: str = fields.CharField(max_length=150)
 

@@ -1,29 +1,25 @@
 from bot.script_evs import *
 
+import add_voice_factory
+import add_template_to_db
+import LIB_voice_option
 
-async def add_users(bot: GuardBot, interaction: discord.Interaction):
+
+async def add_users(bot: Bot, interaction: discord.Interaction):
     for user in interaction.guild.members:
-        server = await bot.db.get_server(guild_id=interaction.guild_id)
-        db_user = await bot.db.get_user(server=server, user_id=user.id)
-
-        if db_user: continue
-
-        await bot.db.save_user(
-            guild_id=interaction.guild_id,
-            user_id=user.id
+        await bot.guild.db.save_user(
+            user_id=user.id,
+            voice_settings=LIB_voice_option.VoiceSettings(
+                LIB_voice_option.NameSettings.nickname,
+                LIB_voice_option.ChangeAllow.nobody,
+                0
+            ).to_dict()
         )
     await interaction.channel.send("Users added to DataBase")
 
 
-async def main(*, bot: GuardBot, interaction: discord.Interaction):
-    kwargs = {
-        "is_active": True
-    }
-
-    server = await bot.db.save_server(
-        guild_id=interaction.guild.id,
-        **kwargs
-    )
+async def main(*, bot: Bot, interaction: discord.Interaction):
+    await bot.guild.db.init(interaction.guild_id, is_active=True)
 
     await interaction.channel.send(f"Guild: {interaction.guild} added to DataBase")
 
@@ -35,19 +31,14 @@ async def main(*, bot: GuardBot, interaction: discord.Interaction):
 
     try:
         if interaction.guild.id == 957269545326891028:
-            await bot.script_eng.execute(
-                "add_voice_factory", None,
-                interaction=interaction,
-                channel_id=1371185726502338610
-            )
-            server.additions["voice_channel_announce"] = 1371207588045262868
-            await server.save()
+            await add_voice_factory.main(bot=bot, interaction=interaction, channel_id=1371185726502338610)
+            await bot.guild.db.save_server_addition("voice_channel_announce", 1371207588045262868)
     except Exception as e:
         await interaction.channel.send(f"Voice Factory adding error: {e}")
         logger.exception("Voice Factory adding error")
 
     try:
-        await bot.script_eng.execute("add_template_to_db", None, interaction=interaction)
+        await add_template_to_db.main(bot=bot, interaction=interaction)
     except Exception as e:
         await interaction.channel.send(f"Error adding templates: {e}")
         logger.exception("Error adding templates")
