@@ -1,17 +1,16 @@
-from bot.script_evs import *
+from bot.script_env import *
 
-import add_voice_factory
-import add_template_to_db
-import LIB_voice_option
+import lib.template_init as template_init
+import lib.voice_option as voice_option
 
 
 async def add_users(bot: Bot, interaction: discord.Interaction):
     for user in interaction.guild.members:
         await bot.guild.db.save_user(
             user_id=user.id,
-            voice_settings=LIB_voice_option.VoiceSettings(
-                LIB_voice_option.NameSettings.nickname,
-                LIB_voice_option.ChangeAllow.nobody,
+            voice_settings=voice_option.VoiceSettings(
+                voice_option.NameSettings.nickname,
+                voice_option.ChangeAllow.nobody,
                 0
             ).to_dict()
         )
@@ -31,14 +30,17 @@ async def main(*, bot: Bot, interaction: discord.Interaction):
 
     try:
         if interaction.guild.id == 957269545326891028:
-            await add_voice_factory.main(bot=bot, interaction=interaction, channel_id=1371185726502338610)
+            await bot.guild.db.save_factory_channel(channel_id=1371185726502338610)
             await bot.guild.db.save_server_addition("voice_channel_announce", 1371207588045262868)
+
+            await interaction.channel.send("Voice Factory added to GuardDatabase")
     except Exception as e:
         await interaction.channel.send(f"Voice Factory adding error: {e}")
         logger.exception("Voice Factory adding error")
 
     try:
-        await add_template_to_db.main(bot=bot, interaction=interaction)
+        await template_init.init(bot)
+        await interaction.channel.send("Template added to GuardDatabase")
     except Exception as e:
         await interaction.channel.send(f"Error adding templates: {e}")
         logger.exception("Error adding templates")

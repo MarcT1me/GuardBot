@@ -1,5 +1,7 @@
 from .bot import GuardBot
 from .database import *
+from .script_engine import *
+from . import voice_core
 from os import getenv
 
 

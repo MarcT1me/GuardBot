@@ -11,8 +11,8 @@ from bot.bot import GuardBot
 
 
 class ModerationCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: GuardBot):
+        self.bot: GuardBot = bot
 
     @staticmethod
     def _check_role_hierarchy(user: discord.Member | discord.User, role: discord.Role) -> int:
@@ -43,10 +43,11 @@ class ModerationCog(commands.Cog):
         description="Выдаёт участнику роль"
     )
     @app_commands.describe(
-        member="кому выдать?",
-        role="какую роль выдать?",
-        reason="Зачем?"
+        member="участник",
+        role="какую роль выдать",
+        reason="причина (журнал аудита)"
     )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_roles=True)
     async def add_role(
@@ -77,13 +78,14 @@ class ModerationCog(commands.Cog):
 
     @app_commands.command(
         name="del_role",
-        description="Убирает у участника роль"
+        description="Убирает роль у участника"
     )
     @app_commands.describe(
-        member="кому убрать?",
-        role="какую роль убрать?",
-        reason="почему?"
+        member="участник",
+        role="какую роль убрать",
+        reason="причина (журнал аудита)"
     )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_roles=True)
     async def del_role(
@@ -117,11 +119,12 @@ class ModerationCog(commands.Cog):
         description="Создаёт канал указанного типа"
     )
     @app_commands.describe(
-        channel_name="Какое имя дать каналу?",
-        category="В какую категорию поместить?",
-        channel_type="Какого типа канал создавать?",
-        reason="Зачем?"
+        channel_name="имя нового канала",
+        category="категория в которую создать канал",
+        channel_type="тип канала",
+        reason="причина (журнал аудита)"
     )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_channels=True)
     async def create_channel(
@@ -182,12 +185,13 @@ class ModerationCog(commands.Cog):
 
     @app_commands.command(
         name="delete_channel",
-        description="Удаляет текстовый канал"
+        description="Удаляет выбранный канал"
     )
     @app_commands.describe(
-        channel="какой канал удалять?",
-        reason="зачем?",
+        channel="какой канал удалять",
+        reason="причина (журнал аудита)"
     )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(manage_channels=True)
     async def delete_channel(
@@ -208,9 +212,10 @@ class ModerationCog(commands.Cog):
         description="Выгоняет участника"
     )
     @app_commands.describe(
-        member="Кого выгнать?",
-        reason="зачем?",
+        member="участник которому не повезло",
+        reason="причина (журнал аудита + уведомление для пользователя)"
     )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(administration=True)
     async def kick(

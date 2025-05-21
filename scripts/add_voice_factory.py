@@ -1,4 +1,4 @@
-from bot.script_evs import *
+from bot.script_env import *
 
 
 async def main(*, bot: Bot, interaction: discord.Interaction, channel_id: int):

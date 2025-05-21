@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager
 import asyncio
+from contextlib import asynccontextmanager
 from functools import wraps
 from pathlib import Path
 
@@ -159,26 +159,24 @@ class GuardBot(commands.Bot):
         return False
 
     @property
-    def script_eng(self) -> 'bot.cogs.script_engine.ScriptEngine':
-        return self.cogs.get("ScriptEngine")
+    def script_eng(self) -> 'bot.ScriptEngine':
+        cog: bot.cogs.script.ScriptCog = self.cogs.get("ScriptCog")
+        return cog.engine
 
     @property
-    def event_cog(self) -> 'bot.cogs.events.EventCog':
-        return self.cogs.get("EventCog")
-
-    @property
-    def voice_cog(self) -> 'bot.cogs.voice.VoiceCog':
-        return self.cogs.get("VoiceCog")
+    def voice_state_manager(self) -> 'bot.voice_core.VoiceStateManager':
+        cog: bot.cogs.voice.VoiceCog = self.cogs.get("VoiceCog")
+        return cog.voice_state_manager
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
-        await self.db.connect()
         await self.load_cogs()
+        await self.tree.sync()
 
     @commands.Cog.listener()
     async def on_ready(self):
+        self._cog_loading_event.set()
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
-        await self.tree.sync()
 
     async def load_cogs(self) -> None:
         """Загрузка всех когов из папки cogs"""
@@ -189,8 +187,6 @@ class GuardBot(commands.Bot):
                 logger.success(f"✅ Cog loaded: {cog_name}\n")
             except Exception as e:
                 logger.error(f"❌ Error loading {cog_name}: {e}\n")
-
-        self._cog_loading_event.set()
 
     async def load_extension(self, name: str, *args, **kwargs) -> None:
         try:
@@ -217,7 +213,7 @@ class GuardBot(commands.Bot):
 
     async def unload_cogs(self, cog_names: list[str] | None = None):
         if cog_names is None or "VoiceCog" in cog_names:
-            await self.voice_cog.disconnect_all()
+            await self.voice_state_manager.disconnect_all()
 
         for cog_name in self.cog_names() if not cog_names else cog_names:
             try:
@@ -242,7 +238,7 @@ class GuardBot(commands.Bot):
                 await cog.on_ready()
 
         if cog_names is None or "ScriptEngine" in cog_names:
-            await self.script_eng.on_ready()
+            await self.script_eng.load_scripts()
 
         await self.tree.sync()
 
@@ -251,6 +247,6 @@ class GuardBot(commands.Bot):
         await super().start(*args, **kwargs)
 
     async def close(self) -> None:
-        await self.voice_cog.disconnect_all()
+        await self.voice_state_manager.disconnect_all()
         await self.db.close()
         await super().close()

@@ -1,4 +1,4 @@
-from bot.script_evs import *
+from bot.script_env import *
 
 import add_guild_to_db
 

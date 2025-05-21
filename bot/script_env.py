@@ -9,6 +9,7 @@ import discord.app_commands as _app_commands
 import datetime
 import asyncio
 import random
+import json
 
 from typing import (
     Callable, Optional, Any,
@@ -39,6 +40,7 @@ class discord:
 
     Colour = _discord.Colour
     Asset = _discord.Asset
+    CustomActivity = _discord.CustomActivity
 
     AllowedMentions = _discord.AllowedMentions
     File = _discord.File
@@ -51,11 +53,11 @@ class app_commands:
 
 
 class ScriptDatabase:
-    user: _GuardDatabase.user = None
-    script: _GuardDatabase.script = None
-    role: _GuardDatabase.role = None
-    channel: _GuardDatabase.channel = None
-    template: _GuardDatabase.template = None
+    user: _GuardDatabase.user
+    script: _GuardDatabase.script
+    role: _GuardDatabase.role
+    channel: _GuardDatabase.channel
+    template: _GuardDatabase.template
 
     async def init(self, _id: int, **kwargs): pass
 
@@ -127,4 +129,4 @@ def iterate[T](expr: _Iterable[T]) -> _Iterator[tuple[int, T]]: pass
 def calculate(expr: str) -> float: pass
 
 
-def include(script_name: str, as_name: str = None) -> Any: pass
+def include(script_name: str, as_name: Optional[str] = None) -> Any: pass

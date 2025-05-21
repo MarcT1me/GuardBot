@@ -1,6 +1,7 @@
-from bot.script_evs import *
+from bot.script_env import *
 
-import LIB_voice_option
+import lib.voice_option as voice_option
+# voice_option: Any = include("lib.voice_option", "voice_option")
 
 
 async def get_embed(bot: Bot, member: discord.Member,
@@ -35,15 +36,20 @@ async def main(*, bot: Bot, member: discord.Member,
     guild = member.guild
 
     if after.channel:
-        db_channel: ScriptDatabase.channel | None = await bot.guild.db.get_channel_by_id(channel_id=after.channel.id)
+        db_channel: Optional[ScriptDatabase.channel] = await bot.guild.db.get_channel_by_id(channel_id=after.channel.id)
 
         if db_channel and db_channel.type == "voice_factory":
+            voice_settings = voice_option.VoiceSettings.from_dict(
+                (await bot.guild.db.get_user(user_id=member.id)).additions["voice_settings"]
+            )
+
             parent_channel: discord.VoiceChannel = after.channel
 
             temp_channel: discord.VoiceChannel = await guild.create_voice_channel(
-                name=f"⏳ {member.name}\'s room",
+                name=voice_settings.get_name(member),
                 category=parent_channel.category,
-                reason=f"{parent_channel.name} child auto-creating"
+                reason=f"{parent_channel.name} child auto-creating",
+                user_limit=voice_settings.size
             )
             await member.move_to(temp_channel)
 
@@ -62,9 +68,7 @@ async def main(*, bot: Bot, member: discord.Member,
                             temp_channel=temp_channel,
                             author=member,
                             parent_channel=parent_channel,
-                            option=LIB_voice_option.VoiceSettings.from_dict(
-                                (await bot.guild.db.get_user(user_id=member.id)).additions["voice_settings"]
-                            )
+                            option=voice_settings
                     ):
                         await resp_channel.send(embed=embed)
                     else:

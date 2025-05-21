@@ -11,7 +11,11 @@ class TestCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="test_drop_exc", description="Выбрасывает ошибку выбранного уровня (1, 2)")
+    @app_commands.command(
+        name="test_drop_exc",
+        description="вызывает обычную ошибку"
+    )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(administrator=True)
     async def test_drop_exc(self, interaction: discord.Interaction):
@@ -23,7 +27,14 @@ class TestCog(commands.Cog):
         )
         raise TestDropException("TEST DROP")
 
-    @app_commands.command(name="test_drop_http", description="вызывает ошибку HTTP 400")
+    @app_commands.command(
+        name="test_drop_http",
+        description="вызывает ошибку HTTP 400"
+    )
+    @app_commands.describe(
+        force="усиление, если не вышло с 1 раза (CAREFUL)"
+    )
+    @app_commands.guild_only
     @GuardBot.error_handler()
     @GuardBot.has_permission(administrator=True)
     async def test_drop_http(self, interaction: discord.Interaction, force: bool = False):

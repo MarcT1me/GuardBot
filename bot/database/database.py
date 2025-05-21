@@ -1,8 +1,8 @@
-from typing import Any
 from abc import ABC, abstractmethod
+from typing import Any
 
-from tortoise import Tortoise
 from loguru import logger
+from tortoise import Tortoise
 
 from .models import *
 
@@ -93,11 +93,10 @@ class GuardDatabase(Database):
                           content: str, is_active: bool = False,
                           **additions) -> Script:
         server = await cls.get_server(guild_id=server_id)
-        script_type = script_type.split(".")
         script, _ = await Script.update_or_create(
             server=server,
 
-            type=script_type[0],
+            type=script_type,
             name=name,
             additions=additions,
 

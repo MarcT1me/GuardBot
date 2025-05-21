@@ -1,10 +1,10 @@
-from typing import Optional
 import os
 from datetime import datetime, timedelta
+from typing import Optional
 
 import discord
-from discord.ext import commands
 from discord import ui, app_commands
+from discord.ext import commands
 
 from loguru import logger
 
@@ -12,40 +12,11 @@ from bot import GuardBot
 
 
 class GuardLogger:
-    # _console_format = (
-    #     "<green>{time:YYYY-MM-DD HH:mm:ss:ms}</green> <red>|</red> "
-    #     "<level>{level: <8}</level> <red>|</red> "
-    #     "<cyan>{name}</cyan><red>:</red><cyan>{function}</cyan><red>:</red><cyan>{line}</cyan> <red>-</red> "
-    #     "<level>{message}</level>"
-    # )
-    # _file_format = "{time:YYYY-MM-DD HH:mm:ss:ms} | {level: <8} | {name}:{function}:{line} - {message}"
-
     def __init__(self, *, log_dir: str = "logs", logging_active: bool = False):
         self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
         self.logging_active: bool = logging_active
         self.current_logger: Optional[int] = None
-
-    #     self.current_loggers = []
-    #
-    # def init_logger(self):
-    #     for header in self.current_loggers:
-    #         logger.remove(header)
-    #     self._add_logger()
-    #
-    # def _add_logger(self):
-    #     console_levels = {"DEBUG", "INFO", "SUCCESS", "ERROR"}
-    #     console_sink = sys.stdout
-    #
-    #     for level in console_levels:
-    #         self.current_loggers.append(
-    #             logger.add(
-    #                 sink=console_sink,
-    #                 format=self._console_format,
-    #                 level=level,
-    #                 colorize=True
-    #             )
-    #         )
 
     def start(self):
         self.logging_active = True
@@ -53,15 +24,12 @@ class GuardLogger:
         file_sink = str(self.log_dir) + "/{time:YYYYMMDD_HHmmss}.log"
         rotation = 2000
         retention = timedelta(hours=1)
-        # compression = "zip"
 
         self.current_logger = logger.start(
             sink=file_sink,
-            # format=self._file_format,
             encoding="utf-8",
             rotation=rotation,
             retention=retention,
-            # compression=compression,
         )
 
         logger.info("Логирование активировано")
@@ -172,7 +140,10 @@ class LoggingCog(commands.Cog):
                 self.manager.start()
             # self.manager.init_logger()
 
-    @app_commands.command(name="logs", description="Управление системой логирования")
+    @app_commands.command(
+        name="logs",
+        description="Управление системой логирования"
+    )
     async def logs_command(self, interaction: discord.Interaction):
         passed = await self.bot.check_botdev(interaction)
         if not passed:
