@@ -5,8 +5,8 @@ from pprint import pformat
 
 import discord
 from discord import app_commands
+from discord import ui
 from discord.ext import commands
-
 from loguru import logger
 from lupa.lua54 import LuaRuntime
 
@@ -92,29 +92,35 @@ class ScriptCog(commands.Cog):
 
         self.manager = ExecutorManager(bot)
 
+    @app_commands.command(
+        name="script_hub",
+        description="Команды скрипт системы"
+    )
+    async def script_hub(self, interaction: discord.Interaction):
+        passed = await self.bot.check_botdev(interaction)
+        if not passed:
+            return await interaction.response.send_message(  # type: ignore
+                "GET OF FUCK OUT!!! 🤬🤬🤬",
+                ephemeral=True
+            )
+
+        view = ScriptView(self, interaction.user)
+
+        await interaction.response.send_message(  # type: ignore
+            "**Панель управления Скриптами**\n"
+            "Выберите действие:",
+            view=view,
+            ephemeral=True
+        )
+
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         async with self.bot.wait_for_cog_loading(0):
             await self.engine.load_scripts()
             await self.engine.guilds_on_ready()
 
-    @app_commands.command(
-        name="update_scripts",
-        description="обновляет скрипты"
-    )
-    @app_commands.describe(
-        from_db="если команда вызвана с сервера можно обновить guild скрипты",
-    )
     @GuardBot.error_handler(is_defer=True)
     async def update_scripts(self, interaction: discord.Interaction, from_db: bool = False):
-        passed = await self.bot.check_botdev(interaction)
-        if not passed:
-            return await interaction.response.send_message(  # type: ignore
-                "GET OF FUCK OUT!!! 🤬🤬🤬"
-            )
-
-        await interaction.response.defer()  # type: ignore
-
         try:
             logger.debug("Scripts reloading")
             if from_db:
@@ -124,7 +130,8 @@ class ScriptCog(commands.Cog):
 
             if not error_list:
                 await interaction.followup.send(  # type: ignore
-                    "✅ Success"
+                    "✅ Success updated",
+                    ephemeral=True
                 )
             else:
                 error_messages = ""
@@ -132,71 +139,23 @@ class ScriptCog(commands.Cog):
                     error_messages += "\n" + description
 
                 await interaction.followup.send(  # type: ignore
-                    "⚠️ Any error(s):" + error_messages
+                    "⚠️ Any error(s) in updating process:" + error_messages,
+                    ephemeral=True
                 )
         except Exception as e:
             await interaction.followup.send(  # type: ignore
-                f"⚠️ Unexpected error: {e}"
+                f"⚠️ Unexpected error in updating process: {e}",
+                ephemeral=True
             )
             raise
 
-    @app_commands.command(
-        name="exec_mode",
-        description="переключатель для выполнения скрипта из чата"
-    )
-    @app_commands.describe(
-        status="на какой статус переключиться",
-    )
     @GuardBot.error_handler()
-    async def exec_mode(self, interaction: discord.Interaction, status: bool):
-        passed = await self.bot.check_botdev(interaction)
-        if not passed:
-            return await interaction.response.send_message(  # type: ignore
-                "GET OF FUCK OUT!!! 🤬🤬🤬"
-            )
-
-        if status:
-            self.manager.create_seance(interaction.user)
-            await interaction.response.send_message(  # type: ignore
-                "▶️ Execution - on"
-            )
-        else:
-            if self.manager.get_seance(interaction.user):
-                self.manager.delete_seance(interaction.user)
-            await interaction.response.send_message(  # type: ignore
-                "⏹️ Execution - off"
-            )
-
-    @app_commands.command(
-        name="exec_mode_status",
-        description="показывает в активность команды exec_mode"
-    )
-    @GuardBot.error_handler()
-    async def exec_mode_status(self, interaction: discord.Interaction):
-        passed = await self.bot.check_botdev(interaction)
-        if not passed:
-            return await interaction.response.send_message(  # type: ignore
-                "GET OF FUCK OUT!!! 🤬🤬🤬"
-            )
-
+    async def turn_exec_mode(self, interaction: discord.Interaction) -> bool:
         if self.manager.get_seance(interaction.user):
-            await interaction.response.send_message(  # type: ignore
-                "▶️ Now execution - on"
-            )
+            self.manager.delete_seance(interaction.user)
         else:
-            await interaction.response.send_message(  # type: ignore
-                "⏹️ Now execution - off"
-            )
+            self.manager.create_seance(interaction.user)
 
-    @app_commands.command(
-        name="exec_script",
-        description="выполняет скрипт"
-    )
-    @app_commands.describe(
-        script_name="имя скрипта",
-        from_db="если команда вызвана с сервера можно выполнить guild скрипт",
-        kwargs="аргументы для скрипта в формате json"
-    )
     @GuardBot.error_handler(is_defer=True)
     async def exec_script(
             self, interaction: discord.Interaction,
@@ -204,14 +163,6 @@ class ScriptCog(commands.Cog):
             from_db: bool = False,
             kwargs: str = "{}"
     ):
-        passed = await self.bot.check_botdev(interaction)
-        if not passed:
-            return await interaction.response.send_message(  # type: ignore
-                "GET OF FUCK OUT!!! 🤬🤬🤬"
-            )
-
-        await interaction.response.defer()  # type: ignore
-
         try:
             ret = await self.bot.script_eng.execute(
                 script_name, interaction.guild_id if from_db else None,
@@ -222,16 +173,19 @@ class ScriptCog(commands.Cog):
                 "Result:\n"
                 "```\n"
                 f"{pformat(ret)}\n"
-                "```\n"
+                "```\n",
+                ephemeral=True
             )
         except Exception as e:
             await interaction.followup.send(  # type: ignore
-                f"Критичная ошибка при выполнении: {e}"
+                f"⚠️ Критичная ошибка при выполнении: {e}",
+                ephemeral=True
             )
             raise
         except RuntimeWarning as e:
             await interaction.followup.send(  # type: ignore
-                f"Ошибка при выполнении: {e}"
+                f"⚠️ Ошибка при выполнении: {e}",
+                ephemeral=True
             )
             raise
 
@@ -255,7 +209,7 @@ class ScriptCog(commands.Cog):
                         lang,
                         code,
                         msg.guild.id,
-                        full_bot = self.bot,
+                        full_bot=self.bot,
                         msg=msg
                     )
 
@@ -279,6 +233,82 @@ class ScriptCog(commands.Cog):
                     await msg.channel.send(
                         "Error:\n" + str(e)
                     )
+
+
+class ScriptView(ui.View):
+    def __init__(self, cog: ScriptCog, user: discord.User):
+        super().__init__(timeout=None)
+        self.cog: ScriptCog = cog
+        self._update_buttons(user)
+
+    @ui.button(label="Turn exec mode", style=discord.ButtonStyle.secondary, custom_id="script:toggle_exec")
+    async def turn_exec_mode(self, interaction: discord.Interaction, _: ui.Button):
+        await self.cog.turn_exec_mode(interaction)
+        self._update_buttons(interaction.user)
+        await interaction.response.edit_message(view=self)  # type: ignore
+
+    def _update_buttons(self, user: discord.User):
+        session = self.cog.manager.get_seance(user)
+        self.turn_exec_mode.label = "⏹️ Остановить" if session else "▶️ Запустить"
+        self.turn_exec_mode.style = discord.ButtonStyle.red if session else discord.ButtonStyle.green
+
+    @ui.button(label="♻️ Обновить скрипты", style=discord.ButtonStyle.secondary, custom_id="script:update")
+    async def update_scripts(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.send_modal(  # type: ignore
+            UpdateScriptsModal(self.cog)
+        )
+
+    @ui.button(label="⚡ Выполнить скрипт", style=discord.ButtonStyle.blurple, custom_id="script:exec")
+    async def get_logs_button(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.send_modal(  # type: ignore
+            ExecuteScriptModal(self.cog)
+        )
+
+
+class UpdateScriptsModal(ui.Modal, title="Обновление скриптов"):
+    from_db = ui.TextInput(
+        label="Обновить guild скрипт",
+        placeholder="True для активации",
+        required=False
+    )
+
+    def __init__(self, cog: ScriptCog):
+        super().__init__()
+        self.cog: ScriptCog = cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)  # type: ignore
+        from_db = self.from_db.value == "True"
+
+        await self.cog.update_scripts(interaction, from_db)
+
+
+class ExecuteScriptModal(ui.Modal, title="Выполнение скриптов"):
+    name = ui.TextInput(
+        label="Имя скрипта",
+        placeholder="Пример: add_guild_to_db",
+        required=True
+    )
+    kwargs = ui.TextInput(
+        label="аргументы скрипта (JSON format)",
+        default="{}",
+        required=False,
+    )
+    from_db = ui.TextInput(
+        label="Использовать guild скрипт",
+        placeholder="True для активации",
+        required=False
+    )
+
+    def __init__(self, cog: ScriptCog):
+        super().__init__()
+        self.cog: ScriptCog = cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)  # type: ignore
+        from_db = self.from_db.value == "True"
+
+        await self.cog.exec_script(interaction, self.name.value, from_db, self.kwargs.value)
 
 
 async def setup(bot: GuardBot):

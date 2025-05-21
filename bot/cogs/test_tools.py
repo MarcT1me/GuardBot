@@ -66,7 +66,7 @@ class TestToolsView(ui.View):
 
     @ui.button(label="🔥 Вызвать ошибку", style=discord.ButtonStyle.secondary)
     async def raise_error(self, interaction: discord.Interaction, _: ui.Button):
-        await interaction.response.defer()  # type: ignore
+        await interaction.response.defer(ephemeral=True)  # type: ignore
         await self.cog.test_drop_exc(interaction)
         await interaction.followup.send(
             "Тест завершен",
