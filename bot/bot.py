@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from functools import wraps
 from pathlib import Path
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -23,7 +24,13 @@ class GuardBot(commands.Bot):
     instance: 'GuardBot' = None
     is_restart: bool = False
 
-    _bot_dev_users = [805395077496832011, 1226073097136771135]
+    _bot_dev_users = [
+        805395077496832011,  # Marc
+        1226073097136771135,  # Snaik
+        278772518758776833,  # Alex
+        864811730337267734,  # Just
+        764118831526314004,  # Emil
+    ]
 
     def __new__(cls, *args, **kwargs):
         if not cls.instance:
@@ -178,10 +185,12 @@ class GuardBot(commands.Bot):
         self._cog_loading_event.set()
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
 
-    async def load_cogs(self) -> None:
+    async def load_cogs(self, cog_names: Optional[list[str]] = None) -> None:
         """Загрузка всех когов из папки cogs"""
 
         for cog_name in self.cog_names():
+            if cog_names and cog_name not in cog_names:
+                continue
             try:
                 await self.load_extension(cog_name)
                 logger.success(f"✅ Cog loaded: {cog_name}\n")
@@ -226,9 +235,11 @@ class GuardBot(commands.Bot):
 
     async def reload_cogs(self, cog_names: list[str] | None = None):
         await self.unload_cogs(cog_names)
-        await self.load_cogs()
+        await self.load_cogs(cog_names)
 
-        for cog_name in self.cog_names() if not cog_names else cog_names:
+        names = self.cog_names() if not cog_names else cog_names
+
+        for cog_name in names:
             cog = self.get_cog(cog_name)
             if (
                     cog
@@ -239,8 +250,6 @@ class GuardBot(commands.Bot):
 
         if cog_names is None or "ScriptEngine" in cog_names:
             await self.script_eng.load_scripts()
-
-        await self.tree.sync()
 
     async def start(self, *args, **kwargs) -> None:
         await self.db.connect()

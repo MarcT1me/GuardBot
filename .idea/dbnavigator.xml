@@ -1,56 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="DBNavigator.Project.DDLFileAttachmentManager">
-    <mappings />
-    <preferences />
-  </component>
-  <component name="DBNavigator.Project.DataEditorManager">
-    <record-view-column-sorting-type value="BY_INDEX" />
-    <value-preview-text-wrapping value="false" />
-    <value-preview-pinned value="false" />
-  </component>
   <component name="DBNavigator.Project.DatabaseAssistantManager">
-    <assistants>
-      <assistant-state connection-id="1bb6d8a4-9f4c-4a3b-b8c4-be73ce826c92" default-profile-name="" selected-profile-name="" selected-model-name="" assistant-type="GENERIC" selected-action="SHOW_SQL" availability="UNAVAILABLE" acknowledgement="NONE">
-        <messages />
-      </assistant-state>
-    </assistants>
-  </component>
-  <component name="DBNavigator.Project.DatabaseBrowserManager">
-    <autoscroll-to-editor value="false" />
-    <autoscroll-from-editor value="true" />
-    <show-object-properties value="false" />
-    <loaded-nodes />
-  </component>
-  <component name="DBNavigator.Project.DatabaseEditorStateManager">
-    <last-used-providers />
+    <assistants />
   </component>
   <component name="DBNavigator.Project.DatabaseFileManager">
     <open-files />
-  </component>
-  <component name="DBNavigator.Project.DatabaseSessionManager">
-    <connection id="1bb6d8a4-9f4c-4a3b-b8c4-be73ce826c92" />
-  </component>
-  <component name="DBNavigator.Project.DatasetFilterManager">
-    <filter-actions connection-id="1bb6d8a4-9f4c-4a3b-b8c4-be73ce826c92" dataset="main.roles" active-filter-id="" />
-  </component>
-  <component name="DBNavigator.Project.ExecutionManager">
-    <retain-sticky-names value="false" />
-  </component>
-  <component name="DBNavigator.Project.MethodExecutionManager">
-    <method-browser />
-    <execution-history>
-      <group-entries value="true" />
-      <execution-inputs />
-    </execution-history>
-    <execution-variables-cache />
-  </component>
-  <component name="DBNavigator.Project.ObjectQuickFilterManager">
-    <last-used-operator value="EQUAL" />
-    <filters />
-  </component>
-  <component name="DBNavigator.Project.ParserDiagnosticsManager">
-    <diagnostics-history />
   </component>
   <component name="DBNavigator.Project.Settings">
     <connections />

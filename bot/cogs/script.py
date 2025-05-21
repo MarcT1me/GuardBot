@@ -11,7 +11,7 @@ from loguru import logger
 from lupa.lua54 import LuaRuntime
 
 from bot.bot import GuardBot
-from bot.script_engine import ScriptEngine
+from bot.cogs.script_engine import ScriptEngine
 
 
 class ExecutorSeance:

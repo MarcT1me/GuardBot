@@ -8,7 +8,8 @@ from discord.ext import commands
 from loguru import logger
 from yt_dlp import YoutubeDL
 
-from bot import GuardBot, voice_core
+from bot import GuardBot
+from bot.cogs import voice_core
 
 
 class VoiceCog(commands.Cog):

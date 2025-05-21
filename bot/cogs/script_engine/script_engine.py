@@ -6,7 +6,7 @@ from loguru import logger
 from lupa.lua54 import LuaRuntime
 
 from bot.bot import GuardBot, GuardDatabase
-from bot.script_engine import BaseScript
+from bot.cogs.script_engine import BaseScript
 
 
 class ScriptEngine:

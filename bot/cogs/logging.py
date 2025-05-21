@@ -139,7 +139,6 @@ class LoggingCog(commands.Cog):
             pass
             if self.manager.logging_active:
                 self.manager.start()
-            # self.manager.init_logger()
 
     @app_commands.command(
         name="logs",
@@ -167,6 +166,6 @@ async def setup(bot: GuardBot):
     await bot.add_cog(
         LoggingCog(
             bot,
-            GuardLogger()
+            GuardLogger(logging_active=True)
         )
     )
