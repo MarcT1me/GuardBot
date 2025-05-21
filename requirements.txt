@@ -1,5 +1,5 @@
 loguru
-
+python-dotenv
 discord
 
 pynacl

@@ -2,7 +2,9 @@ from .bot import GuardBot
 from .database import *
 from bot.cogs.script_engine import *
 from .cogs import voice_core
-from os import getenv
+
+from dotenv import load_dotenv
+import os
 
 
 def main():
@@ -10,6 +12,7 @@ def main():
         database=GuardDatabase()
     )
 
-    guard_bot.run(getenv("GUARD_BOT_API_KEY"))
+    load_dotenv()
+    guard_bot.run(os.getenv("GUARD_BOT_API_KEY"))
 
     return GuardBot.is_restart

@@ -1,7 +1,5 @@
 services:
   guard-bot:
     build: .
-    environment:
-      - GUARD_BOT_API_KEY=${GUARD_BOT_API_KEY}
     volumes:
       - ./:/app
