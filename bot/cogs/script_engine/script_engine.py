@@ -16,7 +16,7 @@ class ScriptEngine:
     def __init__(
             self, bot: GuardBot, lua_runtime: LuaRuntime, /,
             scripts_dir="scripts",
-            lib_dir="scripts\\lib",
+            lib_dir="scripts/lib",
             script_timeout: int = 30
     ):
         self.bot: GuardBot = bot
