@@ -80,7 +80,7 @@ class LogGetterModal(ui.Modal):
 
             # Отправляем первый подходящий файл
             file_path = os.path.join(self.manager.log_dir, found_files[0])
-            log_file = discord.File(file_path, str(found_files[0][:16]) + ".log")
+            log_file = discord.File(file_path, str(found_files[0][:15]) + ".log")
 
             await interaction.followup.send(
                 f"📁 Лог от `{target_time}`:",

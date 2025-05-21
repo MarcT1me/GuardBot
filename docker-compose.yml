@@ -1,0 +1,6 @@
+services:
+  GuardBot:
+    build: Dockerfile
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+    restart: unless-stopped
