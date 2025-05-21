@@ -22,7 +22,7 @@ class GuardLogger:
         self.logging_active = True
 
         file_sink = str(self.log_dir) + "/{time:YYYYMMDD_HHmmss}.log"
-        rotation = 2000
+        rotation = 2000000
         retention = timedelta(hours=1)
 
         self.current_logger = logger.start(
@@ -48,9 +48,11 @@ class LogGetterModal(ui.Modal):
         self.manager: GuardLogger = manager
         self.add_item(
             ui.TextInput(
-                label="Время начала (YYYYMMDD_HHMM)",
-                placeholder="Пример: 20231023_1530",
-                required=True
+                label="Время начала (DD-MM-YYYY_HH:MM)",
+                placeholder="Пример: 23-10-2023_15:30",
+                required=True,
+                min_length=16,
+                max_length=16
             )
         )
 
@@ -59,7 +61,7 @@ class LogGetterModal(ui.Modal):
         timestamp = self.children[0].value  # type: ignore
 
         try:
-            target_time = datetime.strptime(timestamp, "%Y%m%d_%H%M")
+            target_time = datetime.strptime(timestamp, "%d-%m-%Y_%H:%M")
             found_files = []
 
             # Ищем все логи начиная с указанного времени
@@ -78,14 +80,13 @@ class LogGetterModal(ui.Modal):
 
             # Отправляем первый подходящий файл
             file_path = os.path.join(self.manager.log_dir, found_files[0])
-            with open(file_path, "r", encoding="utf-8") as f:  # Указываем кодировку
-                content = f.read()
-                if len(content) > 1900:
-                    content = content[:1900] + "\n... (логи обрезаны)"
-                await interaction.followup.send(
-                    f"📁 Лог от {found_files[0][:13]}:\n```\n{content}\n```",
-                    ephemeral=True
-                )
+            log_file = discord.File(file_path, str(found_files[0][:16]) + ".log")
+
+            await interaction.followup.send(
+                f"📁 Лог от `{target_time}`:",
+                ephemeral=True,
+                file=log_file
+            )
 
         except Exception as e:
             await interaction.followup.send(f"🚨 Ошибка: {str(e)}", ephemeral=True)
