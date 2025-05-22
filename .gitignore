@@ -1,9 +1,13 @@
 .venv
+.git
 .idea
-__test__
+
 __pycache__
+__test__
 
 *__test__*
+
 *cookie*
 *.log
 *.sqlite3*
+.env

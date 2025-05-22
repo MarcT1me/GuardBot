@@ -1,17 +1,19 @@
-__pycache__
 .venv
 .git
-.env
-
 .idea
+
+__pycache__
 __test__
+
+*__test__*
 
 *.pyc
 *.pyo
 *.pyd
+.gitignore
+
 Dockerfile
 docker-compose.yml
-.gitignore
 
 *cookie*
 *.log
