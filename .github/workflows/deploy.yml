@@ -24,7 +24,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
             set -euxo pipefail
             cd GuardBot
-
+            
+            eval \"\$(ssh-agent -s)\"
+            ssh-add ~/.ssh/github_actions
+          
             git pull origin master
 
             docker compose --project-name guard-bot down
