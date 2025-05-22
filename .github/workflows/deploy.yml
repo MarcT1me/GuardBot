@@ -17,13 +17,13 @@ jobs:
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: |
-            ${{ secrets.SSH_PRIVATE_KEY }}  # Убедитесь, что ключ в формате PEM
+            ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Deploy via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
             set -euxo pipefail
-            cd /path/to/GuardBot
+            cd GuardBot
 
             git pull origin master
 
