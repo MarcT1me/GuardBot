@@ -104,18 +104,21 @@ class BotToolView(ui.View):
 
     @ui.button(label="🔄 Рестарт бота", style=discord.ButtonStyle.danger)
     async def restart(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use restart")
         await interaction.response.send_modal(  # type: ignore
             RestartModal(self.cog)
         )
 
     @ui.button(label="⏹️ Остановка бота", style=discord.ButtonStyle.danger)
     async def shutdown(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use shutdown")
         await interaction.response.send_modal(  # type: ignore
             ShutdownModal(self.cog)
         )
 
     @ui.button(label="⚙️ Перезагрузка Cogs", style=discord.ButtonStyle.danger)
     async def reload_cogs(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use reload_cogs")
         await interaction.response.send_modal(  # type: ignore
             ReloadCogsModal(self.cog)
         )

@@ -66,6 +66,8 @@ class TestToolsView(ui.View):
 
     @ui.button(label="🔥 Вызвать ошибку", style=discord.ButtonStyle.secondary)
     async def raise_error(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use raise_error")
+
         await interaction.response.defer(ephemeral=True)  # type: ignore
         await self.cog.test_drop_exc(interaction)
         await interaction.followup.send(
@@ -75,6 +77,8 @@ class TestToolsView(ui.View):
 
     @ui.button(label="🌐 HTTP Тест", style=discord.ButtonStyle.secondary)
     async def http_test(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use http_test")
+
         await interaction.response.send_modal(  # type: ignore
             TestHTTPModel(self.cog)
         )

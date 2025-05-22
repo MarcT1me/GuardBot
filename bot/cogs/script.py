@@ -243,6 +243,8 @@ class ScriptView(ui.View):
 
     @ui.button(label="Turn exec mode", style=discord.ButtonStyle.secondary, custom_id="script:toggle_exec")
     async def turn_exec_mode(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use turn_exec_mode")
+
         await self.cog.turn_exec_mode(interaction)
         self._update_buttons(interaction.user)
         await interaction.response.edit_message(view=self)  # type: ignore
@@ -254,12 +256,16 @@ class ScriptView(ui.View):
 
     @ui.button(label="♻️ Обновить скрипты", style=discord.ButtonStyle.secondary, custom_id="script:update")
     async def update_scripts(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use update_scripts")
+
         await interaction.response.send_modal(  # type: ignore
             UpdateScriptsModal(self.cog)
         )
 
     @ui.button(label="⚡ Выполнить скрипт", style=discord.ButtonStyle.blurple, custom_id="script:exec")
-    async def get_logs_button(self, interaction: discord.Interaction, _: ui.Button):
+    async def exec_script(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use exec_script")
+
         await interaction.response.send_modal(  # type: ignore
             ExecuteScriptModal(self.cog)
         )

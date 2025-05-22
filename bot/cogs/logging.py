@@ -99,19 +99,21 @@ class LogView(ui.View):
         self._update_buttons()
 
     def _update_buttons(self):
-        self.start_stop_button.label = (
+        self.turn_logging.label = (
             "⏹️ Остановить"
             if self.manager.logging_active
             else "▶️ Запустить"
         )
-        self.start_stop_button.style = (
+        self.turn_logging.style = (
             discord.ButtonStyle.red
             if self.manager.logging_active
             else discord.ButtonStyle.green
         )
 
     @ui.button(label="▶️ Запустить", style=discord.ButtonStyle.green, custom_id="log:toggle")
-    async def start_stop_button(self, interaction: discord.Interaction, _: ui.Button):
+    async def turn_logging(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use turn_logging")
+
         if self.manager.logging_active:
             self.manager.stop()
         else:
@@ -122,7 +124,9 @@ class LogView(ui.View):
         await interaction.response.edit_message(view=self)  # type: ignore
 
     @ui.button(label="📂 Получить логи", style=discord.ButtonStyle.blurple, custom_id="log:get")
-    async def get_logs_button(self, interaction: discord.Interaction, _: ui.Button):
+    async def get_logs(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use get_logs")
+
         modal = LogGetterModal(self.manager)
         await interaction.response.send_modal(modal)  # type: ignore
 
