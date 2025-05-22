@@ -1,5 +1,8 @@
 services:
   guard-bot:
+    container_name: guard-bot-container
+    labels:
+      - com.example.maintainer=guard-bot-container-label
     build: .
     volumes:
       - ./:/app
