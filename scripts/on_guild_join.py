@@ -7,7 +7,7 @@ async def main(*, bot: Bot, guild: discord.Guild):
     class FakeInteraction:
         def __init__(self):
             self.guild = guild
-            self.channel = guild.system_channel
+            self.followup = guild.system_channel
 
     try:
         await add_guild_to_db.main(bot=bot, interaction=FakeInteraction())

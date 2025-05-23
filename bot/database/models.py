@@ -32,6 +32,7 @@ class Script(Model):
 
     content: str = fields.TextField()
     is_active: bool = fields.BooleanField(default=False)
+    timestamp: float = fields.IntField()
 
     additions: dict = fields.JSONField(default={})  # any data
 

@@ -71,18 +71,13 @@ class BotToolCog(commands.Cog):
             pass
 
     @GuardBot.error_handler(is_defer=True)
-    async def reload_cogs(self, interaction: discord.Interaction, cog_list: str = None):
-        if cog_list:
-            cog_names = [cog + "Cog" for cog in cog_list.split("\\")]
-        else:
-            cog_names = None
-
+    async def reload_cogs(self, interaction: discord.Interaction, cog_list: list[str] = None):
         await interaction.followup.send(  # type: ignore
             "🔁 Cogs reloading started",
             ephemeral=True
         )
 
-        await self.bot.reload_cogs(cog_names)
+        await self.bot.reload_cogs(cog_list)
 
         await interaction.followup.send(  # type: ignore
             "✅ Cogs reloaded",
@@ -119,8 +114,46 @@ class BotToolView(ui.View):
     @ui.button(label="⚙️ Перезагрузка Cogs", style=discord.ButtonStyle.danger)
     async def reload_cogs(self, interaction: discord.Interaction, _: ui.Button):
         logger.warning(f"{interaction.user.name} use reload_cogs")
-        await interaction.response.send_modal(  # type: ignore
-            ReloadCogsModal(self.cog)
+        view = ReloadCogsView(self.cog)
+        await interaction.response.send_message(  # type: ignore
+            "Выберите запчасти для перезагрузки",
+            view=view,
+            ephemeral=True
+        )
+
+
+class ReloadCogsView(ui.View):
+    def __init__(self, bot_tools: BotToolCog):
+        super().__init__()
+        self.bot_tools: BotToolCog = bot_tools
+
+        cogs_names = self.bot_tools.bot.cogs.keys()
+
+        self.select = ui.Select(
+            placeholder="выберите запчасти к перезагрузке",
+            options=[
+                *[
+                    discord.SelectOption(label=cog_name, value=cog_name)
+                    for cog_name in cogs_names
+                ],
+                discord.SelectOption(label="All", value="All")
+            ],
+            max_values=len(cogs_names),
+            custom_id="log_list:select_one"
+        )
+        self.select.callback = self.select_one
+        self.add_item(self.select)
+
+    async def select_one(self, interaction: discord.Interaction):
+        logger.warning(f"{interaction.user.name} use log_list:select_one")
+        await interaction.response.defer(ephemeral=True)  # type: ignore
+
+        selected_cogs = self.select.values
+        await self.bot_tools.reload_cogs(
+            interaction,
+            selected_cogs
+            if selected_cogs and "All" not in selected_cogs else
+            None
         )
 
 
@@ -172,24 +205,6 @@ class ShutdownModal(ui.Modal, title="Настройка выключения"):
         interval = int(self.interval.value) if self.interval.value else 600
 
         await self.bot_tools.close_bot(interaction, time, interval)
-
-
-class ReloadCogsModal(ui.Modal, title="Перезагрузка Cogs"):
-    cogs_list = ui.TextInput(
-        label="список Cogs (разделитель \\)",
-        placeholder="например: Event\\Fun",
-        required=False
-    )
-
-    def __init__(self, bot_tools: BotToolCog):
-        super().__init__()
-        self.bot_tools: BotToolCog = bot_tools
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer()  # type: ignore
-
-        value = self.cogs_list.value
-        await self.bot_tools.reload_cogs(interaction, value if value else None)
 
 
 async def setup(bot: GuardBot):

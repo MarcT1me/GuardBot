@@ -5,4 +5,4 @@ import lib.template_init as template_init
 
 async def main(*, bot: Bot, interaction: discord.Interaction):
     await template_init.init(bot)
-    await interaction.channel.send("Templates added to DataBase")
+    await interaction.followup.send("Templates added to DataBase", ephemeral=True)

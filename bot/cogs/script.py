@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 from pprint import pformat
+from typing import Any, Optional
 
 import discord
 from discord import app_commands
@@ -10,8 +11,8 @@ from discord.ext import commands
 from loguru import logger
 from lupa.lua54 import LuaRuntime
 
-from bot.bot import GuardBot
-from bot.cogs.script_engine import ScriptEngine
+from bot import GuardBot, GuardDatabase
+from bot.cogs.script_engine import BaseScript, ScriptEngine
 
 
 class ExecutorSeance:
@@ -96,22 +97,35 @@ class ScriptCog(commands.Cog):
         name="script_hub",
         description="Команды скрипт системы"
     )
-    async def script_hub(self, interaction: discord.Interaction):
-        passed = await self.bot.check_botdev(interaction)
-        if not passed:
-            return await interaction.response.send_message(  # type: ignore
+    async def script_hub(self, interaction: discord.Interaction, is_light: bool = True):
+        view = None
+
+        if await self.bot.check_botdev(interaction):
+            if is_light:
+                view = LightScriptView(self)
+            else:
+                view = ScriptView(self, interaction.user)
+
+
+        elif user := await self.bot.db.get_user(
+                server=await self.bot.db.get_server(guild_id=interaction.guild_id),
+                user_id=interaction.user.id
+        ):
+            if user.additions.get("allow_scripts"):
+                view = LightScriptView(self)
+
+        if view:
+            await interaction.response.send_message(  # type: ignore
+                "**Панель управления Скриптами**\n"
+                "Выберите действие:",
+                view=view,
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(  # type: ignore
                 "GET OF FUCK OUT!!! 🤬🤬🤬",
                 ephemeral=True
             )
-
-        view = ScriptView(self, interaction.user)
-
-        await interaction.response.send_message(  # type: ignore
-            "**Панель управления Скриптами**\n"
-            "Выберите действие:",
-            view=view,
-            ephemeral=True
-        )
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -235,6 +249,213 @@ class ScriptCog(commands.Cog):
                     )
 
 
+class LightScriptView(ui.View):
+    def __init__(self, cog: ScriptCog):
+        super().__init__()
+        self.cog: ScriptCog = cog
+
+    @ui.button(label="❔ просмотр скриптов", style=discord.ButtonStyle.secondary, custom_id="light_script:check")
+    async def check_scripts(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use light_script:check")
+
+        view = CheckScriptsView(self.cog)
+
+        await interaction.response.send_message(  # type: ignore
+            "Настройте фильтры и выполните поиск",
+            view=view,
+            ephemeral=True
+        )
+
+    @ui.button(label="♻️ Обновить скрипты", style=discord.ButtonStyle.secondary, custom_id="light_script:update")
+    async def update_scripts(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use light_script:update")
+        await interaction.response.defer(ephemeral=True)  # type: ignore
+
+        await self.cog.update_scripts(interaction, True)
+
+    @ui.button(label="⚡ Выполнить скрипт", style=discord.ButtonStyle.blurple, custom_id="light_script:exec")
+    async def exec_script(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use light_script:exec")
+
+        await interaction.response.send_modal(  # type: ignore
+            ExecuteScriptModal(self.cog)
+        )
+
+
+class CheckScriptsView(ui.View):
+    _options = [
+        discord.SelectOption(label="libs", value="lib", description="библиотеки (зависимости)", default=False),
+        discord.SelectOption(label="events", value="event", description="автоматические события", default=False),
+        discord.SelectOption(label="defaults", value="default", description="вызываемые функции", default=False),
+        discord.SelectOption(label="Python", value="py", description="написанные на Python", default=False),
+        discord.SelectOption(label="Lua", value="lua", description="написанные на Lua", default=False),
+    ]
+    _max_values = len(_options) - 1
+
+    def __init__(self, cog: ScriptCog):
+        super().__init__()
+        self.cog: ScriptCog = cog
+
+    @ui.select(
+        cls=ui.Select,
+        placeholder="Выберите фильтры",
+        options=_options,
+        max_values=_max_values,
+        custom_id="script_check:filter_select_check"
+    )
+    async def check_scripts(self, interaction: discord.Interaction, filter_select: ui.Select):
+        await interaction.response.defer(ephemeral=True)  # type: ignore
+        selected_filters = filter_select.values  # Получаем выбранные значения
+
+        if "all" in selected_filters:
+            selected_filters = ["py", "lua"]
+
+        db_server: GuardDatabase.server = await self.cog.bot.db.get_server(guild_id=interaction.guild_id)
+        db_scripts: set[GuardDatabase.script] = await self.cog.bot.db.script.filter(server=db_server)
+        eng_scripts: dict[str, BaseScript] = self.cog.bot.script_eng.scripts.get(interaction.guild_id)
+
+        if not any(
+                filter in db_script.type
+                for filter in selected_filters
+                for db_script in db_scripts
+        ):
+            await interaction.followup.send(  # type: ignore
+                "Я не нашёл скриптов подходящих под фильтры",
+                ephemeral=True
+            )
+
+        err_list = []
+
+        for db_script in db_scripts:
+            try:
+                if any(
+                        filter in db_script.type
+                        for filter in selected_filters
+                ):
+                    script_params: dict[str, Any] = await self._get_script_params(
+                        db_script,
+                        eng_scripts.get(db_script.name)
+                    )
+
+                    await interaction.followup.send(  # type: ignore
+                        embed=self._get_embed(
+                            script_params
+                        ),
+                        files=self._get_files(
+                            interaction.guild_id,
+                            script_params
+                        ),
+                        ephemeral=True
+                    )
+            except Exception as e:
+                err_list.append(e)
+
+        if err_list:
+            await interaction.followup.send(  # type: ignore
+                "Ошибки в ходе поиска скриптов:\n" + "\n".join(str(e) for e in err_list),
+                ephemeral=True
+            )
+
+    @staticmethod
+    async def _get_files(guild_id: int, script_params: dict[str, Any]):
+        files = []
+
+        code_name = f"{guild_id}.{script_params['name']}"
+        files.append(
+            discord.File(
+                fp=script_params["content"],
+                filename=f"{code_name}.content.txt"
+            )
+        )
+        files.append(
+            discord.File(
+                fp=pformat(script_params["additions"]),
+                filename=f"{code_name}.additions.json"
+            )
+        )
+
+        eng_cache = script_params['eng_cache']
+        if eng_cache:
+            lang = eng_cache['lang']
+            files.append(
+                discord.File(
+                    fp=eng_cache["compiled_code"],
+                    filename=f"{code_name}.compiled.{lang}"
+                )
+            )
+            files.append(
+                discord.File(
+                    fp=pformat(eng_cache["env"]),
+                    filename=f"{code_name}.env.{lang}"
+                )
+            )
+        return files
+
+    @staticmethod
+    async def _get_script_params(db_script: GuardDatabase.script, eng_script: Optional[BaseScript]) -> dict[str, Any]:
+        return {
+            "id": db_script.id,
+            "name": db_script.name,
+            "type": db_script.type,
+
+            "additions": db_script.additions,
+            "content": db_script.content,
+            "is_active": db_script.is_active,
+            "timestamp": db_script.timestamp,
+
+            "eng_cache": {
+                "name": eng_script.name,
+                "filename": eng_script.filename,
+                "lang": eng_script.lang,
+                "is_lib": eng_script.is_lib,
+
+                "compiled_code": eng_script.compiled_code,
+                "env": {
+                    name: value
+                    for name, value in eng_script.code_env.items()
+                    if not name.startswith("_")
+                }
+            } if eng_script else {}
+        }
+
+    @staticmethod
+    async def _get_embed(script_params: dict[str, Any]):
+        eng_cache: dict[str, Any] = script_params['eng_cache']
+
+        embed = discord.Embed(
+            title=f"{script_params['name']} - script data",
+            color=discord.Color.green() if script_params["is_active"] else discord.Color.red(),
+            timestamp=datetime.datetime.fromtimestamp(script_params["timestamp"])
+        ).add_field(
+            name="Identification",
+            value=f"id: {script_params['id']}\n"
+                  f"name: {script_params['name']}\n"
+                  f"filename: {eng_cache.get('filename')}",
+            inline=False
+        ).add_field(
+            name="Status",
+            value=f"loaded: {bool(eng_cache)}\n"
+                  f"active: {script_params['is_active']}",
+            inline=False
+        ).add_field(
+            name="Type",
+            value=f"raw: {script_params['tipe']}\n"
+                  f"lang: {eng_cache.get('lang')}\n"
+                  f"is_lib: {eng_cache.get('is_lib')}",
+            inline=False
+        )
+
+        embed.set_footer(
+            text=f"id: {script_params['id']} is_active: {script_params['is_active']}",
+            icon_url=
+            "https://images.icon-icons.com/2699/PNG/512/python_logo_icon_168886.png"
+            if "py" in script_params["type"] else
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Lua-Logo.svg/2048px-Lua-Logo.svg.png"
+            if "lua" in script_params["type"] else
+            None
+        )
+
+
 class ScriptView(ui.View):
     def __init__(self, cog: ScriptCog, user: discord.User):
         super().__init__(timeout=None)
@@ -243,7 +464,7 @@ class ScriptView(ui.View):
 
     @ui.button(label="Turn exec mode", style=discord.ButtonStyle.secondary, custom_id="script:toggle_exec")
     async def turn_exec_mode(self, interaction: discord.Interaction, _: ui.Button):
-        logger.warning(f"{interaction.user.name} use turn_exec_mode")
+        logger.warning(f"{interaction.user.name} use script:toggle_exec")
 
         await self.cog.turn_exec_mode(interaction)
         self._update_buttons(interaction.user)
@@ -256,7 +477,7 @@ class ScriptView(ui.View):
 
     @ui.button(label="♻️ Обновить скрипты", style=discord.ButtonStyle.secondary, custom_id="script:update")
     async def update_scripts(self, interaction: discord.Interaction, _: ui.Button):
-        logger.warning(f"{interaction.user.name} use update_scripts")
+        logger.warning(f"{interaction.user.name} use script:update")
 
         await interaction.response.send_modal(  # type: ignore
             UpdateScriptsModal(self.cog)
@@ -264,7 +485,7 @@ class ScriptView(ui.View):
 
     @ui.button(label="⚡ Выполнить скрипт", style=discord.ButtonStyle.blurple, custom_id="script:exec")
     async def exec_script(self, interaction: discord.Interaction, _: ui.Button):
-        logger.warning(f"{interaction.user.name} use exec_script")
+        logger.warning(f"{interaction.user.name} use script:exec")
 
         await interaction.response.send_modal(  # type: ignore
             ExecuteScriptModal(self.cog)
@@ -303,6 +524,7 @@ class ExecuteScriptModal(ui.Modal, title="Выполнение скриптов"
     from_db = ui.TextInput(
         label="Использовать guild скрипт",
         placeholder="True для активации",
+        default="True",
         required=False
     )
 

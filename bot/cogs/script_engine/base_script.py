@@ -116,7 +116,7 @@ class BaseScript(ABC):
         self.code: str = code
 
         self.compiled_code: Optional[str] = None
-        self.code_env = dict()
+        self.code_env: dict[str, Any] = dict()
         self.is_lib = is_lib
 
         for name, value in {
