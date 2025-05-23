@@ -17,7 +17,7 @@ async def add_users(bot: Bot, interaction: discord.Interaction):
     await interaction.followup.send("Users added to DataBase", ephemeral=True)
 
 
-async def main(*, bot: Bot, interaction: discord.Interaction):
+async def main(*, bot: Bot, interaction: discord.Interaction, voice_factory_list: list[dict[str, int]] = None):
     await bot.guild.db.init(interaction.guild_id, is_active=True)
 
     await interaction.followup.send(f"Guild: {interaction.guild} added to DataBase", ephemeral=True)
@@ -29,20 +29,33 @@ async def main(*, bot: Bot, interaction: discord.Interaction):
         logger.exception("Error adding users")
 
     try:
-        if interaction.guild.id == 957269545326891028:
-            await bot.guild.db.save_factory_channel(channel_id=1371185726502338610)
-            await bot.guild.db.save_server_addition("voice_channel_announce", 1371207588045262868)
+        if voice_factory_list:
+            for voice_factory in voice_factory_list:
+                await bot.guild.db.save_factory_channel(channel_id=voice_factory["factory_channel"])
+                await bot.guild.db.save_server_addition("voice_channel_announce", voice_factory["announce_channel"])
 
-            await interaction.followup.send("Voice Factory added to GuardDatabase", ephemeral=True)
+                await interaction.followup.send(
+                    f"Voice Factory {voice_factory} added to GuardDatabase",
+                    ephemeral=True
+                )
     except Exception as e:
-        await interaction.followup.send(f"Voice Factory adding error: {e}", ephemeral=True)
+        await interaction.followup.send(
+            f"Voice Factory adding error: {e}",
+            ephemeral=True
+        )
         logger.exception("Voice Factory adding error")
 
     try:
         await template_init.init(bot)
-        await interaction.followup.send("Template added to GuardDatabase", ephemeral=True)
+        await interaction.followup.send(
+            "Template added to GuardDatabase",
+            ephemeral=True
+        )
     except Exception as e:
-        await interaction.followup.send(f"Error adding templates: {e}", ephemeral=True)
+        await interaction.followup.send(
+            f"Error adding templates: {e}",
+            ephemeral=True
+        )
         logger.exception("Error adding templates")
 
     logger.success(f"init bot deps for {interaction.guild}")

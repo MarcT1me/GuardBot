@@ -1,5 +1,4 @@
 from loguru import logger
-import importlib
 
 if __name__ == "__main__":
     is_restart = True
@@ -7,7 +6,7 @@ if __name__ == "__main__":
     while is_restart:
         is_restart = False
         try:
-            bot = importlib.import_module("bot", "bot")
+            import bot
             is_restart = bot.main()
         except Exception as e:
             logger.exception("Exception - exit")

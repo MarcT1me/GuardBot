@@ -14,7 +14,7 @@ from loguru import logger
 
 import bot
 from bot import GuardDatabase
-from .env_types import _SafeEnvObject, _EnvObject
+from .env_types import _EnvObject, _SafeEnvObject
 from .safe_types import _SafeBot, _SafeDataBase, _SafeDiscordApi, _ScriptGuild
 
 
@@ -52,7 +52,10 @@ _static_script_env = {
         "property": property,
         "getattr": getattr,
         "setattr": setattr,
-        "dict": dict
+        "isinstance": isinstance,
+        "issubclass": issubclass,
+        "dict": dict,
+        "list": list,
     },
 
     # discord API
@@ -134,7 +137,7 @@ class BaseScript(ABC):
         if module_name == self.name:
             raise ValueError(f"Cannot include self: {module_name}")
 
-        script = self.engine.get_script(self.guild_id, module_name, get_default=True)
+        script = self.engine.get_script(self.guild_id, module_name)
 
         if not script:
             raise ImportError(f"Script {module_name} not found")

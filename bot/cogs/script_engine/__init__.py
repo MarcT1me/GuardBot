@@ -1,6 +1,5 @@
-from .base_script import BaseScript
-
-from .python_script import PythonScript
-from .lua_script import LuaScript
+from bot.cogs.script_engine import scripts
 
 from .script_engine import ScriptEngine
+
+from .executors import ExecutorSeance, ExecutorManager

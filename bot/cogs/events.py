@@ -19,13 +19,13 @@ class EventCog(commands.Cog):
     async def on_guild_join(self, guild: discord.Guild):
         script_name, guild_id = await self._get_event_script(None, "on_member_join")
         await self.bot.script_eng.execute(
-            script_name, None, guild.id,
+            script_name, guild.id,
             guild=guild
         )
 
         script_name, guild_id = await self._get_event_script(None, "on_ready")
         await self.bot.script_eng.execute(
-            script_name, None, guild.id,
+            script_name, guild.id,
             guild=guild
         )
 
@@ -33,7 +33,7 @@ class EventCog(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         script_name, guild_id = await self._get_event_script(None, "on_member_join")
         await self.bot.script_eng.execute(
-            script_name, None, member.guild.id,
+            script_name, member.guild.id,
             member=member
         )
 
@@ -41,7 +41,7 @@ class EventCog(commands.Cog):
     async def on_member_remove(self, member: discord.Member):
         script_name, guild_id = await self._get_event_script(None, "on_member_remove")
         await self.bot.script_eng.execute(
-            script_name, None, member.guild.id,
+            script_name, member.guild.id,
             member=member
         )
 
@@ -53,7 +53,7 @@ class EventCog(commands.Cog):
         else:
             script_name, guild_id = await self._get_event_script(None, "on_member_update")
             await self.bot.script_eng.execute(
-                script_name, None, after.guild.id if after.guild else before.guild.id,
+                script_name, after.guild.id if after.guild else before.guild.id,
                 before=before,
                 after=after
             )
@@ -61,7 +61,7 @@ class EventCog(commands.Cog):
     async def on_member_registered(self, member: discord.Member):
         script_name, guild_id = await self._get_event_script(None, "on_member_registered")
         await self.bot.script_eng.execute(
-            script_name, None, member.guild.id,
+            script_name, member.guild.id,
             member=member
         )
 
@@ -69,7 +69,7 @@ class EventCog(commands.Cog):
     async def on_message(self, msg: discord.Message):
         script_name, guild_id = await self._get_event_script(None, "on_message")
         await self.bot.script_eng.execute(
-            script_name, None, msg.guild.id if msg.guild else None,
+            script_name, msg.guild.id if msg.guild else None,
             msg=msg
         )
 
@@ -78,7 +78,7 @@ class EventCog(commands.Cog):
                                     before: discord.VoiceState, after: discord.VoiceState):
         script_name, guild_id = await self._get_event_script(None, "on_voice_state_update")
         await self.bot.script_eng.execute(
-            script_name, None, member.guild.id,
+            script_name, member.guild.id,
             member=member,
             before=before,
             after=after

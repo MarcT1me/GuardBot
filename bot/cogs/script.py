@@ -3,6 +3,7 @@ import datetime
 import json
 from pprint import pformat
 from typing import Any, Optional
+from io import BytesIO
 
 import discord
 from discord import app_commands
@@ -12,73 +13,7 @@ from loguru import logger
 from lupa.lua54 import LuaRuntime
 
 from bot import GuardBot, GuardDatabase
-from bot.cogs.script_engine import BaseScript, ScriptEngine
-
-
-class ExecutorSeance:
-    def __init__(self, bot: GuardBot):
-        self.bot: GuardBot = bot
-        self.env: dict = {}
-        self.clear_env()
-
-    def expand_env(self, **context) -> dict:
-        self.env.update(**context)
-        return self.env
-
-    def clear_env(self) -> None:
-        self.env = {
-            "response": self.response,
-            "flush_response": self.flush_response,
-            "__std_send_response_message__": ""
-        }
-
-    def response(self, *args, sep: str = " ", end: str = "\n") -> None:
-        self.env["__std_send_response_message__"] += sep.join([str(arg) for arg in args]) + end
-
-    def clear_response(self) -> None:
-        self.env["__std_send_response_message__"] = ""
-
-    async def flush_response(self) -> None:
-        await self.env["send"](
-            f"{datetime.datetime.now().ctime()} | ```\n{self.env["__std_send_response_message__"]}\n```"
-        )
-        self.clear_response()
-
-    async def execute(self, lang: str, code: str, guild_id: int, **context) -> any:
-        try:
-            script, ret = await self.bot.script_eng.fast_execute(lang, code, guild_id, self.env, **context)
-            self.expand_env(**script.code_env)
-
-            self.clear_response()
-            return ret
-        except Exception as e:
-            logger.exception(f"{e}")
-            return e
-        except RuntimeWarning as e:
-            logger.exception(f"{e}")
-            return e
-
-
-class ExecutorManager:
-    def __init__(self, bot: GuardBot):
-        self.bot: GuardBot = bot
-        self.seances: dict[int, ExecutorSeance] = {}
-
-    def get_seance(self, user: discord.User) -> ExecutorSeance | None:
-        return self.seances.get(user.id)
-
-    def seance(self, user: discord.User):
-        if user.id in self.seances:
-            return self.get_seance(user)
-        return self.create_seance(user)
-
-    def create_seance(self, user: discord.User) -> ExecutorSeance:
-        seance = ExecutorSeance(self.bot)
-        self.seances[user.id] = seance
-        return seance
-
-    def delete_seance(self, user: discord.User) -> ExecutorSeance:
-        return self.seances.pop(user.id)
+from bot.cogs.script_engine import ExecutorManager, ScriptEngine, scripts
 
 
 class ScriptCog(commands.Cog):
@@ -284,11 +219,11 @@ class LightScriptView(ui.View):
 
 class CheckScriptsView(ui.View):
     _options = [
+        discord.SelectOption(label="Python", value="py", description="написанные на Python", default=False),
+        discord.SelectOption(label="Lua", value="lua", description="написанные на Lua", default=False),
         discord.SelectOption(label="libs", value="lib", description="библиотеки (зависимости)", default=False),
         discord.SelectOption(label="events", value="event", description="автоматические события", default=False),
         discord.SelectOption(label="defaults", value="default", description="вызываемые функции", default=False),
-        discord.SelectOption(label="Python", value="py", description="написанные на Python", default=False),
-        discord.SelectOption(label="Lua", value="lua", description="написанные на Lua", default=False),
     ]
     _max_values = len(_options) - 1
 
@@ -312,7 +247,7 @@ class CheckScriptsView(ui.View):
 
         db_server: GuardDatabase.server = await self.cog.bot.db.get_server(guild_id=interaction.guild_id)
         db_scripts: set[GuardDatabase.script] = await self.cog.bot.db.script.filter(server=db_server)
-        eng_scripts: dict[str, BaseScript] = self.cog.bot.script_eng.scripts.get(interaction.guild_id)
+        eng_scripts: dict[str, scripts.BaseScript] = self.cog.bot.script_eng.scripts.get(interaction.guild_id)
 
         if not any(
                 filter in db_script.type
@@ -338,16 +273,17 @@ class CheckScriptsView(ui.View):
                     )
 
                     await interaction.followup.send(  # type: ignore
-                        embed=self._get_embed(
+                        embed=await self._get_embed(
                             script_params
                         ),
-                        files=self._get_files(
+                        files=await self._get_files(
                             interaction.guild_id,
                             script_params
                         ),
                         ephemeral=True
                     )
             except Exception as e:
+                logger.exception("Any error in script search process")
                 err_list.append(e)
 
         if err_list:
@@ -363,14 +299,11 @@ class CheckScriptsView(ui.View):
         code_name = f"{guild_id}.{script_params['name']}"
         files.append(
             discord.File(
-                fp=script_params["content"],
+                fp=BytesIO(
+                    script_params["content"]
+                    .encode("utf-8")
+                ),
                 filename=f"{code_name}.content.txt"
-            )
-        )
-        files.append(
-            discord.File(
-                fp=pformat(script_params["additions"]),
-                filename=f"{code_name}.additions.json"
             )
         )
 
@@ -379,20 +312,29 @@ class CheckScriptsView(ui.View):
             lang = eng_cache['lang']
             files.append(
                 discord.File(
-                    fp=eng_cache["compiled_code"],
+                    fp=BytesIO(
+                        eng_cache["compiled_code"]
+                        .encode("utf-8")
+                    ),
                     filename=f"{code_name}.compiled.{lang}"
                 )
             )
             files.append(
                 discord.File(
-                    fp=pformat(eng_cache["env"]),
+                    fp=BytesIO(
+                        pformat(eng_cache["env"])
+                        .encode("utf-8")
+                    ),
                     filename=f"{code_name}.env.{lang}"
                 )
             )
+
         return files
 
     @staticmethod
-    async def _get_script_params(db_script: GuardDatabase.script, eng_script: Optional[BaseScript]) -> dict[str, Any]:
+    async def _get_script_params(
+            db_script: GuardDatabase.script, eng_script: Optional[scripts.BaseScript]
+    ) -> dict[str, Any]:
         return {
             "id": db_script.id,
             "name": db_script.name,
@@ -419,7 +361,7 @@ class CheckScriptsView(ui.View):
         }
 
     @staticmethod
-    async def _get_embed(script_params: dict[str, Any]):
+    async def _get_embed(script_params: dict[str, Any]) -> discord.Embed:
         eng_cache: dict[str, Any] = script_params['eng_cache']
 
         embed = discord.Embed(
@@ -439,7 +381,7 @@ class CheckScriptsView(ui.View):
             inline=False
         ).add_field(
             name="Type",
-            value=f"raw: {script_params['tipe']}\n"
+            value=f"raw: {script_params['type']}\n"
                   f"lang: {eng_cache.get('lang')}\n"
                   f"is_lib: {eng_cache.get('is_lib')}",
             inline=False
@@ -454,6 +396,8 @@ class CheckScriptsView(ui.View):
             if "lua" in script_params["type"] else
             None
         )
+
+        return embed
 
 
 class ScriptView(ui.View):

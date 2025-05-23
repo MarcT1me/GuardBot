@@ -5,20 +5,22 @@
 ![img.png](assets/GuardBot_Discord_profile.png)
 
 <!-- TOC -->
+
 * [<img alt="logo" height="30" src="assets\GuardBotLogo.png"/> GuardBot - discord bot](#img-altlogo-height30-srcassetsguardbotlogopng-guardbot---discord-bot)
-          * [@GuardBot#5373 | @GuardBot-dev#7721](#guardbot5373--guardbot-dev7721)
-  * [`Список изменений`](#список-изменений)
-    * [`фиксы`](#фиксы)
-  * [`Описание`](#описание)
-    * [`Функционал и планы`](#функционал-и-планы)
-      * [Script Engine `(IN PROGRESS)`](#script-engine-in-progress)
-      * [Voice commands `(PARTIAL FINISHED)`](#voice-commands-partial-finished)
-      * [Администрирование:  `(STARTED)`](#администрирование-started)
-      * [Социальные активности:  `(NOT STARTED)`](#социальные-активности-not-started)
-    * [`BOTDEV команды`](#botdev-команды)
-      * [`/botdev_hub`](#botdev_hub)
-      * [`/logs`](#logs)
-      * [`/script_hub`](#script_hub)
+    * [@GuardBot#5373 | @GuardBot-dev#7721](#guardbot5373--guardbot-dev7721)
+        * [`Список изменений`](#список-изменений)
+            * [`фиксы`](#фиксы)
+        * [`Описание`](#описание)
+            * [`Функционал и планы`](#функционал-и-планы)
+                * [Script Engine `(IN PROGRESS)`](#script-engine-in-progress)
+                * [Voice commands `(PARTIAL FINISHED)`](#voice-commands-partial-finished)
+                * [Администрирование:  `(STARTED)`](#администрирование-started)
+                * [Социальные активности:  `(NOT STARTED)`](#социальные-активности-not-started)
+            * [`BOTDEV команды`](#botdev-команды)
+                * [`/botdev_hub`](#botdev_hub)
+                * [`/logs`](#logs)
+                * [`/script_hub`](#script_hub)
+
 <!-- TOC -->
 
 ## `Список изменений`
@@ -56,7 +58,7 @@
 1. [x] скрипты событий;
 2. [x] библиотеки и вызываемые скрипты;
 3. [x] система выполнения скриптов из discord;
-4. [ ] база данных;  `(STARTED)`
+4. [x] база данных;
 5. [x] guild_only скрипты;
 6. [x] абстрагирование скриптов от основной программы;
 7. [x] отделение зоны видимости скриптов от программы;
@@ -77,7 +79,7 @@
 - Для оперирования каналами:  `(PARTIAL FINISHED)`
     1. [x] фабрики каналов и временные каналы;
     2. [x] данные пользователя, фабричных и временных каналов;
-    3. [ ] настройки каналов и пользователей;
+    3. [ ] настройки каналов и пользователей;  `(STARTED)`
 
 #### [Администрирование](bot/cogs/moderation.py):  `(STARTED)`
 
@@ -136,18 +138,20 @@
     - простая ошибка `Exception("TEST ERROR")` - `/test_drop_exc`
     - проверка отлова ошибок HTTP (`HTTP 400`), - `/test_drop_http [force]`
 
-#### `/logs`
+#### `/log_hub`
 
 Команда для работы с [лог-системой](bot/cogs/logging.py)
 
 <img alt="img.png" height="80" src="assets/logs.png"/>
 
 - кнопка `остановить` динамически меняется, в зависимости от текущего статуса логирования - `/turn_logging`
-- `получить логи` выдаёт логи, в зависимости от введённого времени - `/get_logs [time]`
+- `получить логи` выдаёт имеющийся список логов - `/get_logs`\
+  <img alt="img.png" height="120" src="assets/log_list.png"/>
 
-#### `/script_hub`
+#### `/script_hub [is_light]`
 
-команда для взаимодействия со [скрипт-движком](bot/cogs/script.py)
+команда для взаимодействия со [скрипт-движком](bot/cogs/script.py). Делится на 2 - панель разработчика и админа сервера.
+Первая не поменялась, а вторая немного изменённая его версия.
 
 <img alt="img.png" height="70" src="assets/script.png"/>
 
@@ -156,3 +160,14 @@
 - `обновить скрипты` - обновляет скрипты, перезагружая их либо с базы данных, либо с файлов -
   `/update_scripts [from_db]`
 - `выполнить скрипт` - выполняет скрипт с заданными параметрами - `/exec_script [name] [kwargs] [from_db]`
+
+<img alt="img.png" height="70" src="assets/admin_script.png"/>
+
+- `просмотр скриптов` - позволяет просмотреть скрипты из базы данных исходя из фильтров, для каждого скрипта выдаёт
+  Embed с заголовком и тремя полями - именований, статуса и типа, помимо этого, выдаёт 3 файла, 2 когда (raw & compiled)
+  и ещё один с env, что позволяет сделать необходимые действия.\
+  <img alt="img.png" src="assets/add_guild_to_db_db_script.png" width="250"/>\
+  <img alt="img.png" height="80" src="assets/script_filter_select.png"/>
+- `обновить скрипты` - обновляет guild only скрипты
+- `выполнить скрипт` - работает аналогично кнопке из меню скриптов разработчиков, что тоже помогает в работе со
+  скриптами

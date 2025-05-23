@@ -6,7 +6,7 @@ from loguru import logger
 from lupa.lua54 import LuaRuntime
 
 from bot.bot import GuardBot, GuardDatabase
-from bot.cogs.script_engine import BaseScript
+from bot.cogs.script_engine.scripts import BaseScript
 
 
 class ScriptEngine:
@@ -53,7 +53,6 @@ class ScriptEngine:
             await self.execute(
                 script_name,
                 None,
-                script_guild_id=guild.id,
                 guild=guild
             )
             logger.success(f"`{guild}` data ready\n")
@@ -70,16 +69,18 @@ class ScriptEngine:
     async def load_scripts_from_db(self) -> list:
         load_errors = []
 
-        scripts = await GuardDatabase.script.filter(is_active=True)
+        scripts: list[GuardDatabase.script] = await GuardDatabase.script.filter(is_active=True)
 
-        for script in scripts:
+        for i, script in enumerate(scripts):
             if "lib" in script.type:
                 try:
                     lang, script_type = script.type.split("\\")
+                    script_gild_id = (await script.server.values("guild_id"))["guild_id"]
+                    if script_gild_id not in self.scripts: self.scripts[script_gild_id] = {}
 
-                    self.scripts[script.server.guild_id].update(
+                    self.scripts[script_gild_id].update(
                         self._compile_to_cache(
-                            script.server.guild_id,
+                            script_gild_id,
                             lang,
                             script.name,
                             script.content,
@@ -88,7 +89,6 @@ class ScriptEngine:
                     )
 
                     logger.success(f"Script loaded: {script.name}")
-
                 except Exception as e:
                     logger.error(f"Failed to fetch {script.name}: {e}")
                     load_errors.append(
@@ -99,10 +99,12 @@ class ScriptEngine:
             if "lib" not in script.type:
                 try:
                     lang, script_type = script.type.split("\\")
+                    script_gild_id = (await script.server.values("guild_id"))["guild_id"]
+                    if script_gild_id not in self.scripts: self.scripts[script_gild_id] = {}
 
-                    self.scripts[script.server.guild_id].update(
+                    self.scripts[script_gild_id].update(
                         self._compile_to_cache(
-                            script.server.guild_id,
+                            script_gild_id,
                             lang,
                             script.name,
                             script.content,
@@ -113,7 +115,7 @@ class ScriptEngine:
                     logger.success(f"Script loaded: {script.name}")
 
                 except Exception as e:
-                    logger.error(f"Failed to fetch {script.name}: {e}")
+                    logger.exception(f"Failed to fetch {script.name}: {e}")
                     load_errors.append(
                         (e, f"Failed to fetch {script.name}: {e}")
                     )
@@ -192,23 +194,19 @@ class ScriptEngine:
             raise RuntimeError(f"Any error in {name} compilation process")
 
     async def execute(
-            self, name: str, guild_id: Optional[int] = None,
-            script_guild_id: Optional[int] = None, **context
+            self, name: str, guild_id: Optional[int] = None, **context
     ) -> Any:
         """Запуск скрипта по имени"""
         if script := self.get_script(guild_id, name):
-            return await self.execute_script(script, guild_id, script_guild_id, **context)
+            return await self.execute_script(script, guild_id, **context)
         return logger.error(f"Script {name} not found")
 
-    def get_script(self, guild_id: int, name: str, get_default: bool = False) -> BaseScript:
+    def get_script(self, guild_id: int, name: str) -> BaseScript:
         script_field = self.scripts.get(guild_id)
         if not script_field:
-            if not get_default:
-                return None
             script_field = self.scripts[None]
 
         script = script_field.get(name)
-        if not script: script = self.scripts[None].get(name)
         return script
 
     async def fast_execute(
@@ -222,12 +220,9 @@ class ScriptEngine:
 
     @staticmethod
     async def execute_script(
-            script: BaseScript, guild_id: Optional[int] = None,
-            script_guild_id: Optional[int] = None, **context
+            script: BaseScript, guild_id: Optional[int] = None, **context
     ) -> Any:
         try:
-            if script_guild_id:
-                guild_id = script_guild_id
             ret = await script.execute(guild_id, **context)
             return ret
         except Exception as e:
