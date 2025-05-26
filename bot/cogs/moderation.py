@@ -4,7 +4,6 @@ from typing import Callable
 import discord
 from discord import app_commands
 from discord.ext import commands
-
 from loguru import logger
 
 from bot.bot import GuardBot
@@ -228,11 +227,47 @@ class ModerationCog(commands.Cog):
             member,
             reason=GuardBot.normalized_reason(interaction.user, reason)
         )
+
         await interaction.response.send_message(  # type: ignore
             GuardBot.normalize_response_reason(
                 f"Участник {member.name} изгнан с сервера",
                 reason
+            ),
+            ephemeral=True
+        )
+
+    @app_commands.command(
+        name="kick_from_vc",
+        description="отключает участника от канала"
+    )
+    @app_commands.describe(
+        member="участник которому не повезло",
+        reason="причина (журнал аудита)"
+    )
+    @app_commands.guild_only
+    @GuardBot.error_handler()
+    @GuardBot.has_permission(administrator=True)
+    async def kick_from_vc(
+            self, interaction: discord.Interaction,
+            member: discord.Member,
+            reason: str | None = None
+    ):
+        if not member.voice:
+            await interaction.response.send_message(  # type: ignore
+                "❌ Участник не в голосовом канале!", ephemeral=True
             )
+            return
+
+        await member.move_to(
+            None,
+            reason=GuardBot.normalized_reason(interaction.user, reason)
+        )
+        await interaction.response.send_message(  # type: ignore
+            GuardBot.normalize_response_reason(
+                f"✅ Участник {member.mention} кикнут из канала!",
+                reason
+            ),
+            ephemeral=True
         )
 
 

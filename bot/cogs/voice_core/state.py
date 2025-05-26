@@ -97,12 +97,12 @@ class VoiceState:
                 await asyncio.sleep(0.0)
 
             if self.queue:
-                await interaction.followup.send(
+                await interaction.channel.send(
                     f"Переключаюсь на следующий трек **{self.queue[0].beautiful_title}**"
                 )
 
         if not self.queue and self._is_active:
-            await interaction.followup.send("Очередь воспроизведения кончилась")
+            await interaction.channel.send("Очередь воспроизведения кончилась")
 
         self._is_active = False
 

@@ -36,7 +36,9 @@ class discord:
     TextChannel = _discord.TextChannel
     VoiceChannel = _discord.VoiceChannel
     StageChannel = _discord.StageChannel
+
     VoiceState = _discord.VoiceState
+    Permissions = _discord.Permissions
 
     Colour = _discord.Colour
     Asset = _discord.Asset

@@ -18,7 +18,9 @@ class _SafeDiscordApi:
     TextChannel = discord.TextChannel
     VoiceChannel = discord.VoiceChannel
     StageChannel = discord.StageChannel
+
     VoiceState = discord.VoiceState
+    Permissions = discord.Permissions
 
     Colour = discord.Colour
     Asset = discord.Asset

@@ -1,7 +1,6 @@
 from bot.script_env import *
 
 import lib.voice_option as voice_option
-# voice_option: Any = include("lib.voice_option", "voice_option")
 
 
 async def get_embed(bot: Bot, member: discord.Member,
@@ -49,9 +48,18 @@ async def main(*, bot: Bot, member: discord.Member,
                 name=voice_settings.get_name(member),
                 category=parent_channel.category,
                 reason=f"{parent_channel.name} child auto-creating",
-                user_limit=voice_settings.size
+                user_limit=voice_settings.size,
+                position=parent_channel.position + 1
             )
             await member.move_to(temp_channel)
+
+            try:
+                permissions = discord.Permissions(
+                    discord.Permissions.manage_channels | discord.Permissions.move_members
+                )
+                await temp_channel.set_permissions(member, overwrite=permissions)
+            except Exception as e:
+                logger.error(f"Can set permission in {temp_channel.name} for {member.name}: {e}")
 
             await bot.guild.db.save_temp_channel(
                 channel_id=temp_channel.id,

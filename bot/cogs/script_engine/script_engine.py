@@ -62,9 +62,14 @@ class ScriptEngine:
             return event_name, None
 
         server = await self.bot.db.get_server(guild_id=guild.id)
-        return await self.bot.db.get_script(
+        script = await self.bot.db.get_script(
             server=server, script_type="py\\event", script_name=event_name
-        ), guild.id
+        )
+
+        if script:
+            return script.name, guild.id
+        else:
+            return event_name, None
 
     async def load_scripts_from_db(self) -> list:
         load_errors = []
@@ -194,21 +199,22 @@ class ScriptEngine:
         except Exception:
             raise RuntimeError(f"Any error in {name} compilation process")
 
-    async def execute(
-            self, name: str, guild_id: Optional[int] = None, **context
-    ) -> Any:
-        """Запуск скрипта по имени"""
-        if script := self.get_script(guild_id, name):
-            return await self.execute_script(script, guild_id, **context)
-        return logger.error(f"Script {name} not found")
-
     def get_script(self, guild_id: int, name: str) -> BaseScript:
         script_field = self.scripts.get(guild_id)
         if not script_field:
+            logger.warning("cant find guild script, use default")
             script_field = self.scripts[None]
 
         script = script_field.get(name)
         return script
+
+    async def execute(
+            self, name: str, guild_id: Optional[int], env_guild_id: int, **context
+    ) -> Any:
+        """Запуск скрипта по имени"""
+        if script := self.get_script(guild_id, name):
+            return await self.execute_script(script, guild_id, env_guild_id, **context)
+        return logger.error(f"Script {name} not found")
 
     async def fast_execute(
             self, lang: str, content: str, guild_id: int,
@@ -217,14 +223,14 @@ class ScriptEngine:
         """Запуск скрипта по имени"""
         script: BaseScript = self.compile(guild_id, lang, "<fast_script>", content, False)
         script.code_env.update(**env)
-        return script, await self.execute_script(script, guild_id, **context)
+        return script, await self.execute_script(script, guild_id, guild_id, **context)
 
     @staticmethod
     async def execute_script(
-            script: BaseScript, guild_id: Optional[int] = None, **context
+            script: BaseScript, guild_id: Optional[int], env_guild_id: int, **context
     ) -> Any:
         try:
-            ret = await script.execute(guild_id, **context)
+            ret = await script.execute(guild_id, env_guild_id, **context)
             return ret
         except Exception as e:
             logger.exception(f"Error in script {script.filename}: {e}")
