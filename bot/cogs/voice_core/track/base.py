@@ -1,4 +1,5 @@
 from typing import Any, Optional
+import time
 
 from discord import FFmpegOpusAudio
 from google.oauth2.credentials import Credentials
@@ -36,6 +37,7 @@ class BaseTrack:
     }
 
     _API_CREDENTIALS: Credentials = None
+    _API_CREDENTIALS_LAST_UPDATE_TIME: float = 0
 
     @classmethod
     def load_credentials(cls, token_path="secret/token.json"):
@@ -48,10 +50,15 @@ class BaseTrack:
 
     @classmethod
     def check_token_expiry(cls, token_path="secret/token.json"):
-        if cls._API_CREDENTIALS and cls._API_CREDENTIALS.expired:
+        cur_time = time.time()
+        if (
+                cls._API_CREDENTIALS and cls._API_CREDENTIALS.expired or
+                cur_time - cls._API_CREDENTIALS_LAST_UPDATE_TIME > 55 * 60
+        ):
             cls._API_CREDENTIALS.refresh(Request())
             with open(token_path, 'w') as token_file:
                 token_file.write(cls._API_CREDENTIALS.to_json())
+            cls._API_CREDENTIALS_LAST_UPDATE_TIME = cur_time
 
     def __init__(self, url: str):
         self.url = url

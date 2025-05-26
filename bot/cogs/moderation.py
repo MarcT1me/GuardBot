@@ -217,7 +217,7 @@ class ModerationCog(commands.Cog):
     )
     @app_commands.guild_only
     @GuardBot.error_handler()
-    @GuardBot.has_permission(administration=True)
+    @GuardBot.has_permission(administrator=True)
     async def kick(
             self, interaction: discord.Interaction,
             member: discord.Member,

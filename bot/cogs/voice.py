@@ -35,7 +35,7 @@ class VoiceCog(commands.Cog):
     )
     @app_commands.describe(force="позволяет перейти в канал")
     @app_commands.guild_only
-    @GuardBot.error_handler()
+    @GuardBot.error_handler(is_defer=True)
     async def join(self, interaction: discord.Interaction, force: bool = False):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
@@ -54,15 +54,15 @@ class VoiceCog(commands.Cog):
         guild = interaction.guild
         voice_state = self.voice_state_manager.voice_state(guild.id)
 
+        await interaction.response.defer()  # type: ignore
+
         if not force and voice_state.current_channel:
-            await interaction.response.send_message(  # type: ignore
+            await interaction.followup.send(  # type: ignore
                 f"Не могу! Сейчас я в канале: {voice_state.current_channel.mention}.",
                 ephemeral=True
             )
         else:
             await voice_state.connect_or_move(user_voice.channel)
-
-            await interaction.response.defer()  # type: ignore
 
             try:
                 await self._play_file(
@@ -83,7 +83,7 @@ class VoiceCog(commands.Cog):
     )
     @app_commands.describe(force="выйду из канала в любом случае")
     @app_commands.guild_only
-    @GuardBot.error_handler()
+    @GuardBot.error_handler(is_defer=True)
     async def disconnect(self, interaction: discord.Interaction, force: bool = False):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
@@ -102,14 +102,15 @@ class VoiceCog(commands.Cog):
         guild = interaction.guild
         voice_state = self.voice_state_manager.voice_state(guild.id)
 
+        await interaction.response.defer()  # type: ignore
+
         if voice_state.current_channel:
             if not force and voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                await interaction.followup.send(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
-                await interaction.response.defer()  # type: ignore
 
                 try:
                     await self._play_file(
@@ -125,100 +126,7 @@ class VoiceCog(commands.Cog):
                     )
                     await voice_state.disconnect()
         else:
-            await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
-                ephemeral=True
-            )
-
-    @app_commands.command(
-        name="seek",
-        description="ставит проигрывание на позицию t"
-    )
-    @app_commands.describe(
-        time="секунда с которой начать",
-    )
-    @app_commands.guild_only
-    @GuardBot.error_handler(is_defer=True)
-    async def seek(self, interaction: discord.Interaction, time: int):
-        if self.execution_pause_time:
-            return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
-                ephemeral=True
-            )
-
-        user_voice = interaction.user.voice
-        if not user_voice:
-            return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
-                ephemeral=True
-            )
-
-        guild = interaction.guild
-        voice_state = self.voice_state_manager.voice_state(guild.id)
-
-        await interaction.response.defer()  # type: ignore
-
-        if voice_state.current_channel:
-            if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.followup.send(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
-                    ephemeral=True
-                )
-            else:
-                if voice_state.current_track:
-                    await voice_state.seek(time)
-                    await interaction.followup.send(  # type: ignore
-                        f"Перемотал трек **{voice_state.current_track.beautiful_title}** на позицию в {time}с",
-                        ephemeral=True
-                    )
-        else:
-            await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
-                ephemeral=True
-            )
-
-    @app_commands.command(
-        name="position",
-        description="ставит проигрывание на позицию t"
-    )
-    @app_commands.guild_only
-    @GuardBot.error_handler(is_defer=True)
-    async def position(self, interaction: discord.Interaction):
-        if self.execution_pause_time:
-            return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
-                ephemeral=True
-            )
-
-        user_voice = interaction.user.voice
-        if not user_voice:
-            return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
-                ephemeral=True
-            )
-
-        guild = interaction.guild
-        voice_state = self.voice_state_manager.voice_state(guild.id)
-
-        await interaction.response.defer()  # type: ignore
-
-        if voice_state.current_channel:
-            if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.followup.send(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
-                    ephemeral=True
-                )
-            else:
-                if voice_state.current_track:
-                    await interaction.followup.send(  # type: ignore
-                        f"Трек **{voice_state.current_track.beautiful_title}** находится на позиции "
-                        f"{voice_state.current_position}с",
-                        ephemeral=True
-                    )
-        else:
-            await interaction.response.send_message(  # type: ignore
+            await interaction.followup.send(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -407,6 +315,8 @@ class VoiceCog(commands.Cog):
             f"✅ Добавлено `0/{total}` треков"
         )
 
+        play_task: Optional[asyncio.Task] = None
+
         async for entry in self.iter_entry(entries):
             # checking loading
             if not entry.get('url'):
@@ -434,7 +344,7 @@ class VoiceCog(commands.Cog):
 
                 # play if not playing
                 if not voice_state.is_playing:
-                    await voice_state.play_next(interaction)
+                    play_task = asyncio.create_task(voice_state.play_next(interaction))
                     await interaction.followup.send(
                         f"Начинаю воспроизведение плейлиста **{get_playlist_beautiful_title()}** "
                         f"с трека: **{track.beautiful_title}**",
@@ -451,6 +361,9 @@ class VoiceCog(commands.Cog):
             content=f"🎵 Плейлист **{get_playlist_beautiful_title()}** добавлен в очередь\n"
                     f"(`{added}` треков из `{total}`" + (f", не вышло `{errors}`)" if errors else ")")
         )
+
+        if play_task:
+            await play_task
 
     @staticmethod
     async def iter_entry(entries: dict[str, dict]) -> Iterator[dict]:
@@ -686,7 +599,7 @@ class VoiceCog(commands.Cog):
                     ephemeral=True
                 )
             else:
-                if voice_state.is_paused or voice_state.is_play_when_disconnect:
+                if voice_state.is_paused:
                     await voice_state.resume()
                     if voice_state.current_track:
                         await interaction.response.send_message(  # type: ignore
@@ -819,7 +732,7 @@ class VoiceCog(commands.Cog):
                 guild = interaction.guild
                 voice_state = self.voice_state_manager.voice_state(guild.id)
 
-                await interaction.response.defer()  # type: ignore
+                await interaction.response.defer(ephemeral=True)  # type: ignore
 
                 if voice_state.current_track and voice_state.current_track.source:
                     resp = f"Сейчас играет: **{voice_state.current_track.beautiful_title}**\n"
@@ -832,7 +745,7 @@ class VoiceCog(commands.Cog):
                     async for i, track in voice_state.iter_queue():
                         resp += (
                                 f"> {i + 1}) " +
-                                (f"**{track.beautiful_title}**\n" if track.source else f"`{track.url}`\n")
+                                (f"**{track.beautiful_title}**\n" if track.info else f"`{track.url}`\n")
                         )
 
                 await interaction.followup.send(  # type: ignore
@@ -900,7 +813,7 @@ class VoiceCog(commands.Cog):
         time="время блокироыки (работает повторно)"
     )
     @app_commands.guild_only
-    @GuardBot.has_permission(administration=True)
+    @GuardBot.has_permission(administrator=True)
     @GuardBot.error_handler()
     async def stop_voce_commands(self, interaction: discord.Interaction, time: float = 1.0):
         user_voice = interaction.user.voice

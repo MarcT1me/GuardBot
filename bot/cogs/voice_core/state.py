@@ -1,6 +1,5 @@
 import asyncio
 from typing import Optional, Iterator
-import time
 
 import discord
 from loguru import logger
@@ -18,12 +17,6 @@ class VoiceState:
         self.queue: list[BaseTrack] = []
 
         self._is_active = False
-        self._seek_loading = False
-        self._is_play_when_disconnect = False
-
-        self._start_time: Optional[float] = None
-        self._paused_time: Optional[float] = None
-        self._seek_offset: int = 0
 
     async def update_voice_client(self, channel: discord.VoiceChannel | discord.StageChannel):
         await self.connect_or_move(channel)
@@ -37,10 +30,6 @@ class VoiceState:
         return self._voice_client and self._voice_client.is_playing()
 
     @property
-    def is_play_when_disconnect(self):
-        return self._is_play_when_disconnect
-
-    @property
     def is_paused(self) -> bool:
         return self._voice_client and self._voice_client.is_paused()
 
@@ -52,17 +41,7 @@ class VoiceState:
     def current_channel(self) -> discord.VoiceChannel | discord.StageChannel | None:
         return self._current_channel
 
-    @property
-    def current_position(self) -> int:
-        if not self._start_time:
-            return 0
-
-        if self._paused_time:
-            return int(self._paused_time - self._start_time + self._seek_offset)
-
-        return int(time.time() - self._start_time + self._seek_offset)
-
-    async def iter_queue(self) -> Iterator[BaseTrack]:
+    async def iter_queue(self) -> Iterator[tuple[int, BaseTrack]]:
         for i, track in enumerate(self.queue):
             yield i, track
             await asyncio.sleep(0.0)
@@ -80,8 +59,6 @@ class VoiceState:
     async def disconnect(self) -> None:
         if self._voice_client:
             if self.is_playing:
-                self._is_play_when_disconnect = True
-                self._seek_offset = self.current_position
                 await self.stop()
 
             await self._voice_client.disconnect()
@@ -89,22 +66,6 @@ class VoiceState:
 
             self._voice_client = None
             self._current_channel = None
-
-    async def seek(self, seconds: int):
-        if self.current_track and self._voice_client:
-            self._seek_offset = seconds
-            self._is_play_when_disconnect = False
-
-            self._seek_loading = True
-            current_track = self.current_track
-            await self.stop()
-            self.current_track = current_track
-            await self.current_track.create_source(start_time=seconds)
-
-            self._start_time = time.time()
-            self._voice_client.play(self.current_track.source)
-
-            self._seek_loading = False
 
     async def play(self, track: BaseTrack, interaction: discord.Interaction) -> None:
         if self._voice_client:
@@ -132,7 +93,7 @@ class VoiceState:
             await self._play_current(interaction)
 
             # Ожидаем завершения текущего трека
-            while (self._voice_client and self._voice_client.is_playing()) or self._seek_loading:
+            while self.is_playing or self.is_paused:
                 await asyncio.sleep(0.0)
 
             if self.queue:
@@ -140,9 +101,10 @@ class VoiceState:
                     f"Переключаюсь на следующий трек **{self.queue[0].beautiful_title}**"
                 )
 
-        self._is_active = False
-        if not self.queue:
+        if not self.queue and self._is_active:
             await interaction.followup.send("Очередь воспроизведения кончилась")
+
+        self._is_active = False
 
     async def _set_next(self):
         if self.current_track:
@@ -158,11 +120,6 @@ class VoiceState:
         if not self._voice_client or not self.current_track:
             return
 
-        self._start_time = time.time()
-        self._paused_time = None
-        self._seek_offset = 0
-        self._is_play_when_disconnect = False
-
         self._voice_client.play(
             self.current_track.source,
             after=lambda e: asyncio.run_coroutine_threadsafe(
@@ -177,31 +134,26 @@ class VoiceState:
             logger.error(f"Playback error: {str(error)}")
             return await interaction.followup.send(f"Ошибка воспроизведения: {str(error)}")
 
-        if self.current_track and (not self._is_play_when_disconnect or not self._seek_loading):
+        if self.current_track:
             self.current_track.cleanup()
             self.current_track = None
 
     async def pause(self) -> None:
         if self.is_playing and self.current_track:
             logger.info(f"pause track, {self.current_track.beautiful_title}")
-            self._paused_time = time.time()
             self._voice_client.pause()
 
     async def resume(self) -> None:
         if self.is_paused and self.current_track:
             logger.info(f"resume track, {self.current_track.beautiful_title}")
-            if self._is_play_when_disconnect:
-                await self.seek(self._seek_offset)
-            else:
-                self._is_play_when_disconnect = False
-                self._seek_offset += time.time() - self._paused_time
-                self._voice_client.resume()
+            self._voice_client.resume()
 
     async def stop(self) -> None:
         self._is_active = False
 
         if self.is_playing:
             self._voice_client.stop()
+
         if self.current_track:
             logger.info(f"stop track, {self.current_track.beautiful_title}")
             self.current_track.cleanup()
