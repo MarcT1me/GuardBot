@@ -1,12 +1,11 @@
+from typing import Iterator, Optional
 import asyncio
 from time import time as _uix_time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
-
 from loguru import logger
-from yt_dlp import YoutubeDL
 
 from bot import GuardBot
 from bot.cogs import voice_core
@@ -16,9 +15,15 @@ class VoiceCog(commands.Cog):
     def __init__(self, bot: GuardBot, voice_state_manager: voice_core.VoiceStateManager):
         self.bot: GuardBot = bot
         self.voice_state_manager: voice_core.VoiceStateManager = voice_state_manager
+        voice_core.BaseTrack.load_credentials()
 
         self.execution_pause_time = 0
         self.execution_paused_time_passed = 0
+
+    @staticmethod
+    def refresh_token():
+        voice_core.BaseTrack.load_credentials()
+        voice_core.BaseTrack.check_token_expiry()
 
     @property
     def execution_paused_time_still(self):
@@ -59,17 +64,18 @@ class VoiceCog(commands.Cog):
 
             await interaction.response.defer()  # type: ignore
 
-            await self._play_audio_file(
-                interaction, voice_state, voice_core.TrackFile(
-                    "assets/the bluetooth device is ready to pair.mp3-_-"
-                    "bluetooth device-_-"
-                    "Server"
-                ), 3
-            )
-
-            await interaction.followup.send(  # type: ignore
-                f"Зашёл в канал: {user_voice.channel.mention}."
-            )
+            try:
+                await self._play_file(
+                    interaction, voice_state, voice_core.TrackFile(
+                        "data/the bluetooth device is ready to pair.mp3\n"
+                        "bluetooth device\n"
+                        "Server"
+                    ), 3
+                )
+            finally:
+                await interaction.followup.send(  # type: ignore
+                    f"Зашёл в канал: {user_voice.channel.mention}."
+                )
 
     @app_commands.command(
         name="disconnect",
@@ -105,18 +111,112 @@ class VoiceCog(commands.Cog):
             else:
                 await interaction.response.defer()  # type: ignore
 
-                await self._play_audio_file(
-                    interaction, voice_state, voice_core.TrackFile(
-                        "assets/gaiti.mp3-_-"
-                        "gaiti-_-"
-                        "Server"
-                    ), 3.6
-                )
+                try:
+                    await self._play_file(
+                        interaction, voice_state, voice_core.TrackFile(
+                            "data/gaiti.mp3\n"
+                            "gaiti\n"
+                            "Server"
+                        ), 3.6
+                    )
+                finally:
+                    await interaction.followup.send(  # type: ignore
+                        f"Выхожу из канала: {voice_state.current_channel.mention}."
+                    )
+                    await voice_state.disconnect()
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
 
+    @app_commands.command(
+        name="seek",
+        description="ставит проигрывание на позицию t"
+    )
+    @app_commands.describe(
+        time="секунда с которой начать",
+    )
+    @app_commands.guild_only
+    @GuardBot.error_handler(is_defer=True)
+    async def seek(self, interaction: discord.Interaction, time: int):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        await interaction.response.defer()  # type: ignore
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
                 await interaction.followup.send(  # type: ignore
-                    f"Выхожу из канала: {voice_state.current_channel.mention}."
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
                 )
-                await voice_state.disconnect()
+            else:
+                if voice_state.current_track:
+                    await voice_state.seek(time)
+                    await interaction.followup.send(  # type: ignore
+                        f"Перемотал трек **{voice_state.current_track.beautiful_title}** на позицию в {time}с",
+                        ephemeral=True
+                    )
+        else:
+            await interaction.response.send_message(  # type: ignore
+                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                ephemeral=True
+            )
+
+    @app_commands.command(
+        name="position",
+        description="ставит проигрывание на позицию t"
+    )
+    @app_commands.guild_only
+    @GuardBot.error_handler(is_defer=True)
+    async def position(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Сейчас все войс команды приостановлены админом!"
+                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                ephemeral=True
+            )
+
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "Не могу! Ты не в звуковом канале.",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        await interaction.response.defer()  # type: ignore
+
+        if voice_state.current_channel:
+            if voice_state.current_channel.id != user_voice.channel.id:
+                await interaction.followup.send(  # type: ignore
+                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    ephemeral=True
+                )
+            else:
+                if voice_state.current_track:
+                    await interaction.followup.send(  # type: ignore
+                        f"Трек **{voice_state.current_track.beautiful_title}** находится на позиции "
+                        f"{voice_state.current_position}с",
+                        ephemeral=True
+                    )
         else:
             await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
@@ -129,11 +229,10 @@ class VoiceCog(commands.Cog):
     )
     @app_commands.describe(
         url="ссылка для проигрывания",
-        with_download="кеширует видео, +качество - скорость"
     )
     @app_commands.guild_only
     @GuardBot.error_handler(is_defer=True)
-    async def play(self, interaction: discord.Interaction, url: str, with_download: bool = False):
+    async def play(self, interaction: discord.Interaction, url: str):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
                 f"Сейчас все войс команды приостановлены админом!"
@@ -162,16 +261,16 @@ class VoiceCog(commands.Cog):
             else:
                 if voice_state.is_playing:
                     await voice_state.stop()
-
-                await self._play_audio_file(
-                    interaction, voice_state, voice_core.TrackFile(
-                        "assets/accepted.mp3-_-"
-                        "accepted-_-"
-                        "Server"
-                    ), 3.6
-                )
-
-                await self._play_audio_main(interaction, voice_state, url, with_download)
+                try:
+                    await self._play_file(
+                        interaction, voice_state, voice_core.TrackFile(
+                            "data/accepted.mp3\n"
+                            "accepted\n"
+                            "Server"
+                        ), 3.6
+                    )
+                finally:
+                    await self._play_audio_stream(interaction, voice_state, url)
         else:
             await interaction.followup.send(  # type: ignore
                 f"Захожу в канал {user_voice.channel.mention}, чтобы проиграть звук"
@@ -179,7 +278,7 @@ class VoiceCog(commands.Cog):
 
             await voice_state.connect_or_move(user_voice.channel)
 
-            await self._play_audio_main(interaction, voice_state, url, with_download)
+            await self._play_audio_stream(interaction, voice_state, url)
 
     @app_commands.command(
         name="add_track",
@@ -187,11 +286,10 @@ class VoiceCog(commands.Cog):
     )
     @app_commands.describe(
         url="ссылка что я должен добавить в очередь",
-        with_download="кеширует видео, +качество - скорость"
     )
     @app_commands.guild_only
     @GuardBot.error_handler(is_defer=True)
-    async def add_track(self, interaction: discord.Interaction, url: str, with_download: bool = False):
+    async def add_track(self, interaction: discord.Interaction, url: str):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
                 f"Сейчас все войс команды приостановлены админом!"
@@ -218,10 +316,7 @@ class VoiceCog(commands.Cog):
                     ephemeral=True
                 )
             else:
-                try:
-                    await self._add_track_to_queue(interaction, voice_state, url, with_download)
-                except Exception:
-                    raise
+                await self._add_track_to_queue(interaction, voice_state, url)
         else:
             await interaction.followup.send(  # type: ignore
                 f"Захожу в канал {user_voice.channel.mention}, чтобы проиграть звук"
@@ -229,7 +324,180 @@ class VoiceCog(commands.Cog):
 
             await voice_state.connect_or_move(user_voice.channel)
 
-            await self._play_audio_main(interaction, voice_state, url, with_download)
+            await self._play_audio_stream(interaction, voice_state, url)
+
+    async def _play_audio_stream(
+            self,
+            interaction: discord.Interaction,
+            voice_state: voice_core.VoiceState,
+            url: str
+    ):
+        if info := await voice_core.BaseTrack.check_playlist(url):
+            return await self._handle_playlist(interaction, voice_state, info)
+
+        track, load_message = await self._load_stream(interaction, url)
+
+        try:
+            logger.debug(f"start playing  {track.beautiful_title}")
+            await load_message.edit(
+                content=f"Воспроизвожу: **{track.beautiful_title}**"
+            )
+
+            await voice_state.play(track, interaction)
+        except:
+            await interaction.followup.send(
+                f"Не смог воспроизвести **{track.beautiful_title}**"
+            )
+            logger.error(f"error playing {track.beautiful_title}")
+            raise
+
+    async def _add_track_to_queue(
+            self,
+            interaction: discord.Interaction,
+            voice_state: voice_core.VoiceState,
+            url: str
+    ):
+        if info := await voice_core.BaseTrack.check_playlist(url):
+            return await self._handle_playlist(interaction, voice_state, info)
+
+        track, load_message = await self._load_stream(interaction, url)
+
+        try:
+            await voice_state.add_source(track)
+
+            logger.debug(f"add to queue {url}")
+            await load_message.edit(
+                content=f"Добавил трэк  **{track.beautiful_title}** в очередь"
+            )
+        except:
+            await interaction.followup.send(
+                f"Не смог добавить  **{track.beautiful_title}** в список воспроизведений"
+            )
+            logger.error(f"error adding to queue  {track.beautiful_title}")
+            raise
+
+    async def _handle_playlist(
+            self,
+            interaction: discord.Interaction,
+            voice_state: voice_core.VoiceState,
+            playlist_info: dict
+    ):
+        if len(playlist_info['entries']) > 50:
+            await interaction.followup.send(
+                f"⚡ Слишком много треков, я загружу первые 50"
+            )
+
+        entries = playlist_info['entries'][:50]
+        total = len(entries)
+
+        added = 0
+        errors = 0
+
+        get_playlist_beautiful_title = lambda: (
+            f"{playlist_info.get("channel", "Unknown Author")} - "
+            f"{playlist_info.get('title', 'Unnamed')}"
+        )
+
+        start_load_message: discord.Message = await interaction.followup.send(
+            f"🎶 Загружаю плейлист {get_playlist_beautiful_title()}\n"
+            f"({total} треков)..."
+        )
+        content = f"✅ Добавлено `0/{total}` треков"
+        load_message: discord.Message = await interaction.followup.send(
+            f"✅ Добавлено `0/{total}` треков"
+        )
+
+        async for entry in self.iter_entry(entries):
+            # checking loading
+            if not entry.get('url'):
+                continue
+            if self.execution_pause_time:
+                await interaction.followup.send(
+                    f"Админ остановил загрузки плейлистов...",
+                    ephemeral=True
+                )
+                break
+
+            try:
+                # load track
+                track, _ = await self._load_stream(
+                    interaction, entry['url'],
+                    message=load_message, message_text=content
+                )
+                await voice_state.add_source(track)
+                added += 1
+                content = f"✅ Добавлено `{added}/{total}` треков" + (f"(не вышло `{errors}`)" if errors else "")
+                await load_message.edit(
+                    content=content +
+                            f"\nзагрузил трек      `{entry['url']}`"
+                )
+
+                # play if not playing
+                if not voice_state.is_playing:
+                    await voice_state.play_next(interaction)
+                    await interaction.followup.send(
+                        f"Начинаю воспроизведение плейлиста **{get_playlist_beautiful_title()}** "
+                        f"с трека: **{track.beautiful_title}**",
+                        ephemeral=True
+                    )
+            except Exception as e:
+                logger.error(f"Playlist entry error: {type(e)}: {str(e)}")
+                errors += 1
+
+        if load_message:
+            await load_message.delete()
+
+        await start_load_message.edit(
+            content=f"🎵 Плейлист **{get_playlist_beautiful_title()}** добавлен в очередь\n"
+                    f"(`{added}` треков из `{total}`" + (f", не вышло `{errors}`)" if errors else ")")
+        )
+
+    @staticmethod
+    async def iter_entry(entries: dict[str, dict]) -> Iterator[dict]:
+        for entry in entries:
+            yield entry
+            await asyncio.sleep(0.0)
+
+    @staticmethod
+    async def _load_stream(
+            interaction: discord.Interaction, url: str,
+            message: Optional[discord.Message] = None, message_text: str = ""
+    ) -> tuple[voice_core.TrackStream, discord.Message]:
+        try:
+            if message:
+                await message.edit(
+                    content=message_text + "\n" + f"Подождите, загружаю `{url}`..."
+                )
+            else:
+                message = await interaction.followup.send(
+                    f"Подождите, загружаю `{url}`..."
+                )
+
+            return voice_core.TrackStream(url), message
+        except Exception as e:
+            logger.error(f"error load URL: {e}")
+            await interaction.followup.send(
+                f"Не вышло загрузить: `{url}`"
+            )
+            raise
+
+    @staticmethod
+    async def _play_file(
+            interaction: discord.Interaction,
+            voice_state: voice_core.VoiceState,
+            track: voice_core.TrackFile,
+            time: float
+    ):
+        try:
+            await voice_state.stop()
+            await voice_state.play(track, interaction)
+            await asyncio.sleep(time)
+        except:
+            await interaction.followup.send(
+                f"Не смог воспроизвести **{track.beautiful_title}**"
+            )
+            logger.error(f"error playing {track.beautiful_title}")
+            raise
 
     @app_commands.command(
         name="remove_track",
@@ -286,153 +554,6 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
-    async def _play_audio_main(
-            self,
-            interaction: discord.Interaction,
-            voice_state: voice_core.VoiceState,
-            url: str,
-            with_download: bool
-    ):
-        try:
-            with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if 'entries' in info:
-                    await self._handle_playlist(interaction, voice_state, info, with_download)
-                    return
-
-            message = await interaction.channel.send(
-                f"Подождите, загружаю `{url}`..."
-            )
-
-            track = voice_core.TrackSource(url) if with_download else voice_core.TrackStream(url)
-
-            if with_download:
-                track.download_audio()
-
-            await message.delete()
-        except:
-            logger.exception("error load URL")
-            return await interaction.followup.send(
-                f"Не вышло загрузить: `{url}`"
-            )
-
-        try:
-            logger.debug(f"start playing  {track.beautiful_title}")
-            await interaction.followup.send(
-                f"Воспроизвожу: **{track.beautiful_title}**"
-            )
-
-            await voice_state.play(track, interaction)
-        except:
-            await interaction.followup.send(
-                f"Не смог воспроизвести **{track.beautiful_title}**"
-            )
-            logger.error(f"error playing {track.beautiful_title}")
-            raise
-
-    async def _play_audio_file(
-            self,
-            interaction: discord.Interaction,
-            voice_state: voice_core.VoiceState,
-            track: voice_core.TrackFile,
-            time: float
-    ):
-        try:
-            await voice_state.stop()
-            voice_state._voice_client.play(track.source)
-            await asyncio.sleep(time)
-        except:
-            await interaction.followup.send(
-                f"Не смог воспроизвести **{track.beautiful_title}**"
-            )
-            logger.error(f"error playing {track.beautiful_title}")
-            raise
-
-    async def _add_track_to_queue(
-            self,
-            interaction: discord.Interaction,
-            voice_state: voice_core.VoiceState,
-            url: str,
-            with_download: bool
-    ):
-        try:
-            with YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if 'entries' in info:
-                    await self._handle_playlist(interaction, voice_state, info, with_download)
-                    return
-
-            track = voice_core.TrackSource(url) if with_download else voice_core.TrackStream(url)
-        except:
-            logger.exception("error load URL")
-            return await interaction.followup.send(
-                f"Не вышло загрузить: `{url}`"
-            )
-
-        try:
-            await voice_state.add_source(track)
-
-            logger.debug(f"add to queue {url}")
-            await interaction.followup.send(
-                f"Добавил трэк  **{track.beautiful_title}** в очередь"
-            )
-        except:
-            await interaction.followup.send(
-                f"Не смог добавить  **{track.beautiful_title}** в список воспроизведений"
-            )
-            logger.error(f"error adding to queue  {track.beautiful_title}")
-            raise
-
-    async def _handle_playlist(
-            self,
-            interaction: discord.Interaction,
-            voice_state: voice_core.VoiceState,
-            playlist_info: dict,
-            with_download: bool
-    ):
-        total = len(playlist_info['entries'])
-        added = 0
-
-        await interaction.followup.send(f"🎶 Начинаю загрузку плейлиста ({total} треков)...")
-
-        load_message: discord.Message = None
-
-        for entry in playlist_info['entries']:
-            if not entry.get('url'):
-                continue
-
-            try:
-                track = voice_core.TrackSource(entry['url']) if with_download else voice_core.TrackStream(entry['url'])
-                await voice_state.add_source(track)
-                added += 1
-
-                if added % 5 == 0:
-                    content = f"✅ Добавлено {added}/{total} треков"
-                    if not load_message:
-                        if self.execution_pause_time: break
-
-                        load_message = await interaction.channel.send(content)
-                        if not voice_state.is_playing:
-                            interaction.followup.send(
-                                f"Начинаю воспроизведение плейлиста с трэка {track.beautiful_title}"
-                            )
-                            await voice_state.play_next(interaction)
-
-                    await load_message.edit(content=content)
-
-            except Exception as e:
-                logger.error(f"Playlist entry error: {str(e)}")
-
-        await load_message.edit(content=f"✅ Добавлено {added}/{total} треков")
-
-        await interaction.channel.send(
-            f"🎵 Плейлист **{playlist_info.get('title', 'Unnamed')}** добавлен в очередь "
-            f"({added} треков из {total})"
-        )
-
-        if not voice_state.is_playing:
-            await voice_state.play_next(interaction)
-
     @app_commands.command(
         name="play_next",
         description="пропускает трек"
@@ -467,6 +588,10 @@ class VoiceCog(commands.Cog):
                 if voice_state.current_track:
                     await interaction.response.send_message(  # type: ignore
                         f"Пропускаю **{voice_state.current_track.beautiful_title}**"
+                    )
+                elif voice_state.queue:
+                    await interaction.response.send_message(  # type: ignore
+                        f"Переключаюсь на **{voice_state.queue[0].beautiful_title}**"
                     )
                 else:
                     await interaction.response.send_message(  # type: ignore
@@ -521,7 +646,8 @@ class VoiceCog(commands.Cog):
                     )
                 else:
                     await interaction.response.send_message(  # type: ignore
-                        f"Воспроизведение итак на паузе."
+                        f"Воспроизведение итак на паузе.",
+                        ephemeral=True
                     )
         else:
             await interaction.response.send_message(  # type: ignore
@@ -560,14 +686,16 @@ class VoiceCog(commands.Cog):
                     ephemeral=True
                 )
             else:
-                if voice_state.is_paused:
+                if voice_state.is_paused or voice_state.is_play_when_disconnect:
                     await voice_state.resume()
-                    await interaction.response.send_message(  # type: ignore
-                        f"Продолжаю играть **{voice_state.current_track.beautiful_title}**."
-                    )
+                    if voice_state.current_track:
+                        await interaction.response.send_message(  # type: ignore
+                            f"Продолжаю играть **{voice_state.current_track.beautiful_title}**."
+                        )
                 else:
                     await interaction.response.send_message(  # type: ignore
-                        f"Воспроизведение не было на паузе."
+                        f"Воспроизведение не было на паузе.",
+                        ephemeral=True
                     )
         else:
             await interaction.response.send_message(  # type: ignore
@@ -669,7 +797,7 @@ class VoiceCog(commands.Cog):
         description="показывает очередь проигрывания"
     )
     @app_commands.guild_only
-    @GuardBot.error_handler()
+    @GuardBot.error_handler(is_defer=True)
     async def show_queue(self, interaction: discord.Interaction):
         user_voice = interaction.user.voice
         if not user_voice:
@@ -701,15 +829,15 @@ class VoiceCog(commands.Cog):
                 if voice_state.queue:
                     resp += "В очереди лежат:\n"
 
-                    for i, track in enumerate(voice_state.queue):
-                        if isinstance(track, voice_core.TrackStream):
-                            status = 'S'
-                        else:
-                            status = 'R' if track.filename else 'L' if track.loading else 'Q'
-                        resp += f"{i + 1} - {status} - **{track.beautiful_title}**\n"
+                    async for i, track in voice_state.iter_queue():
+                        resp += (
+                                f"> {i + 1}) " +
+                                (f"**{track.beautiful_title}**\n" if track.source else f"`{track.url}`\n")
+                        )
 
                 await interaction.followup.send(  # type: ignore
-                    GuardBot.normalize_response_size(resp)
+                    GuardBot.normalize_response_size(resp),
+                    ephemeral=True
                 )
         else:
             await interaction.response.send_message(  # type: ignore
@@ -753,7 +881,7 @@ class VoiceCog(commands.Cog):
 
                 await interaction.response.defer()  # type: ignore
 
-                voice_state.queue.clear()
+                await voice_state.cleanup()
 
                 await interaction.followup.send(  # type: ignore
                     "Очистил список воспроизведения"
@@ -772,6 +900,7 @@ class VoiceCog(commands.Cog):
         time="время блокироыки (работает повторно)"
     )
     @app_commands.guild_only
+    @GuardBot.has_permission(administration=True)
     @GuardBot.error_handler()
     async def stop_voce_commands(self, interaction: discord.Interaction, time: float = 1.0):
         user_voice = interaction.user.voice

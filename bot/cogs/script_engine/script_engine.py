@@ -88,7 +88,7 @@ class ScriptEngine:
                         )
                     )
 
-                    logger.success(f"Script loaded: {script.name}")
+                    logger.success(f"Library loaded: {script.name}")
                 except Exception as e:
                     logger.error(f"Failed to fetch {script.name}: {e}")
                     load_errors.append(
@@ -183,8 +183,9 @@ class ScriptEngine:
             name: self.scripts[None]["EMPTY_LIB"]
         })
 
-    def _compile_to_cache(self, guild_id: int, script_lang: str, name: str, content: str, is_lib) -> dict[
-        str, BaseScript]:
+    def _compile_to_cache(
+            self, guild_id: int, script_lang: str, name: str, content: str, is_lib
+    ) -> dict[str, BaseScript]:
         return {name: self.compile(guild_id, script_lang, name, content, is_lib)}
 
     def compile(self, guild_id: int, script_lang: str, name: str, content: str, is_lib: bool) -> BaseScript:

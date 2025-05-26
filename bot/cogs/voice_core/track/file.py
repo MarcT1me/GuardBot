@@ -7,7 +7,7 @@ from .base import BaseTrack
 
 class TrackFile(BaseTrack):
     def _initialize(self):
-        self.url = self.url.split("-_-")
+        self.url = self.url.split("\n")
         self.filename: str = self.url[0]
         self.info = {
             "title": self.url[1],

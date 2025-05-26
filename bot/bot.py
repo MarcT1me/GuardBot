@@ -153,13 +153,6 @@ class GuardBot(commands.Bot):
 
         return decorator
 
-    @staticmethod
-    def cog_names():
-        cogs_dir = Path(__file__).parent / "cogs"
-
-        for cog_file in cogs_dir.glob("*.py"):
-            yield f"bot.cogs.{cog_file.stem}"
-
     async def check_botdev(self, interaction: discord.Interaction) -> bool:
         # Используем await и новый метод из GuardDatabase
         if interaction.user.id in self._bot_dev_users: return True
@@ -173,40 +166,18 @@ class GuardBot(commands.Bot):
     @property
     def voice_state_manager(self) -> 'bot.voice_core.VoiceStateManager':
         cog: bot.cogs.voice.VoiceCog = self.cogs.get("VoiceCog")
-        return cog.voice_state_manager
+        if cog:
+            return cog.voice_state_manager
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
-        await self.load_cogs()
+        await self.load_extensions()
         await self.tree.sync()
 
     @commands.Cog.listener()
     async def on_ready(self):
         self._cog_loading_event.set()
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
-
-    async def load_cogs(self, cog_names: Optional[list[str]] = None) -> None:
-        """Загрузка всех когов из папки cogs"""
-
-        for cog_name in self.cog_names():
-            if cog_names and cog_name not in cog_names:
-                continue
-            try:
-                await self.load_extension(cog_name)
-                logger.success(f"✅ Cog loaded: {cog_name}\n")
-            except Exception as e:
-                logger.error(f"❌ Error loading {cog_name}: {e}\n")
-
-    async def load_extension(self, name: str, *args, **kwargs) -> None:
-        try:
-            await super().load_extension(name, *args, **kwargs)
-            await self.on_cog_loaded()
-        except Exception as e:
-            logger.exception(f"Failed to load {name}: {e}")
-
-    async def on_cog_loaded(self):
-        async with self._condition:
-            self._cog_ready_counter += 1
 
     @asynccontextmanager
     async def wait_for_cog_loading(self, index: int):
@@ -220,26 +191,64 @@ class GuardBot(commands.Bot):
                     self._max_completed_index = index
                 self._condition.notify_all()
 
-    async def unload_cogs(self, cog_names: list[str] | None = None):
-        if cog_names is None or "VoiceCog" in cog_names:
-            await self.voice_state_manager.disconnect_all()
+    @staticmethod
+    def extension_names():
+        cogs_dir = Path(__file__).parent / "cogs"
 
-        for cog_name in self.cog_names() if not cog_names else cog_names:
-            try:
-                if cog_name in self.extensions:
-                    await self.unload_extension(cog_name)
-                    logger.success(f"♻️ Cog unloaded: {cog_name}")
-            except Exception as e:
-                logger.exception(f"🔥 Failed to unload {cog_name}: {e}")
+        names = []
+        for cog_file in cogs_dir.glob("*.py"):
+            names.append(f"bot.cogs.{cog_file.stem}")
+
+        return names
+
+    async def load_extensions(self, extension_names: Optional[list[str]] = None) -> None:
+        """Загрузка всех когов из папки cogs"""
+        load_extension_names = extension_names or self.extension_names()
+
+        for extension_name in load_extension_names:
+            if extension_names and extension_name not in extension_names:
                 continue
 
-    async def reload_cogs(self, cog_names: list[str] | None = None):
-        await self.unload_cogs(cog_names)
-        await self.load_cogs(cog_names)
+            try:
+                await self.load_extension(extension_name)
+                logger.success(f"✅ Cog loaded: {extension_name}\n")
+            except Exception as e:
+                logger.error(f"❌ Error loading {extension_name}: {e}\n")
 
-        names = self.cog_names() if not cog_names else cog_names
+    async def load_extension(self, name: str, *args, **kwargs) -> None:
+        try:
+            await super().load_extension(name, *args, **kwargs)
+            await self.on_extension_loaded()
+        except Exception as e:
+            logger.exception(f"Failed to load {name}: {e}")
 
-        for cog_name in names:
+    async def on_extension_loaded(self):
+        async with self._condition:
+            self._cog_ready_counter += 1
+
+    async def unload_extensions(self, extension_names: list[str] | None = None):
+        if extension_names is None or "bot.cogs.voice" in extension_names:
+            if manager := self.voice_state_manager:
+                await manager.disconnect_all()
+
+        extension_names = extension_names or self.extension_names()
+
+        for extension_name in extension_names:
+            try:
+                if extension_name in self.extensions:
+                    await self.unload_extension(extension_name)
+                    logger.success(f"♻️ Cog unloaded: {extension_name}")
+            except Exception as e:
+                logger.error(f"🔥 Failed to unload {extension_name}: {e}")
+                continue
+
+    async def reload_extensions(self, extension_names: list[str] | None = None):
+        await self.unload_extensions(extension_names)
+        await self.load_extensions(extension_names)
+
+        reload_extension_names = self.extension_names() if not extension_names else extension_names
+
+        for cog_name in reload_extension_names:
             cog = self.get_cog(cog_name)
             if (
                     cog
@@ -248,7 +257,7 @@ class GuardBot(commands.Bot):
             ):
                 await cog.on_ready()
 
-        if cog_names is None or "ScriptEngine" in cog_names:
+        if extension_names is None or "bot.cogs.script" in extension_names:
             await self.script_eng.load_scripts()
 
     async def start(self, *args, **kwargs) -> None:
@@ -256,6 +265,7 @@ class GuardBot(commands.Bot):
         await super().start(*args, **kwargs)
 
     async def close(self) -> None:
-        await self.voice_state_manager.disconnect_all()
+        if manager := self.voice_state_manager:
+            await manager.disconnect_all()
         await self.db.close()
         await super().close()

@@ -52,8 +52,8 @@ class MainHub(ui.View):
                   "Полное выключение бота"
         ).add_field(
             name="Перезагрузка Cogs",
-            value="`/reload_cogs [cog_list]`\n"
-                  "Полная перезагрузка Cogs бота"
+            value="`/reload_extensions [extensions_list]`\n"
+                  "Полная перезагрузка расширений бота"
         )
 
         await interaction.response.send_message(  # type: ignore

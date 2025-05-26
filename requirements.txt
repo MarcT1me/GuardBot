@@ -1,10 +1,13 @@
 loguru
-python-dotenv
 discord
+
+python-dotenv
 
 pynacl
 yt-dlp
 ffmpeg-python
+google-auth-oauthlib
+google-auth
 
 lupa
 RestrictedPython

@@ -71,13 +71,13 @@ class BotToolCog(commands.Cog):
             pass
 
     @GuardBot.error_handler(is_defer=True)
-    async def reload_cogs(self, interaction: discord.Interaction, cog_list: list[str] = None):
+    async def reload_extensions(self, interaction: discord.Interaction, cog_list: list[str] = None):
         await interaction.followup.send(  # type: ignore
             "🔁 Cogs reloading started",
             ephemeral=True
         )
 
-        await self.bot.reload_cogs(cog_list)
+        await self.bot.reload_extensions(cog_list)
 
         await interaction.followup.send(  # type: ignore
             "✅ Cogs reloaded",
@@ -111,48 +111,48 @@ class BotToolView(ui.View):
             ShutdownModal(self.cog)
         )
 
-    @ui.button(label="⚙️ Перезагрузка Cogs", style=discord.ButtonStyle.danger)
-    async def reload_cogs(self, interaction: discord.Interaction, _: ui.Button):
-        logger.warning(f"{interaction.user.name} use reload_cogs")
-        view = ReloadCogsView(self.cog)
+    @ui.button(label="⚙️ Перезагрузка расширений", style=discord.ButtonStyle.danger)
+    async def reload_extensions(self, interaction: discord.Interaction, _: ui.Button):
+        logger.warning(f"{interaction.user.name} use reload_extensions")
+        view = ReloadExtensionsView(self.cog)
         await interaction.response.send_message(  # type: ignore
-            "Выберите запчасти для перезагрузки",
+            "Выберите расширения для перезагрузки",
             view=view,
             ephemeral=True
         )
 
 
-class ReloadCogsView(ui.View):
+class ReloadExtensionsView(ui.View):
     def __init__(self, bot_tools: BotToolCog):
         super().__init__()
         self.bot_tools: BotToolCog = bot_tools
 
-        cogs_names = self.bot_tools.bot.cogs.keys()
+        extension_names = self.bot_tools.bot.extensions.keys()
 
         self.select = ui.Select(
-            placeholder="выберите запчасти к перезагрузке",
+            placeholder="выберите расширения",
             options=[
                 *[
-                    discord.SelectOption(label=cog_name, value=cog_name)
-                    for cog_name in cogs_names
+                    discord.SelectOption(label=extension_name, value=extension_name)
+                    for extension_name in extension_names
                 ],
                 discord.SelectOption(label="All", value="All")
             ],
-            max_values=len(cogs_names),
-            custom_id="log_list:select_one"
+            max_values=len(extension_names),
+            custom_id="reload_extensions:select_one"
         )
         self.select.callback = self.select_one
         self.add_item(self.select)
 
     async def select_one(self, interaction: discord.Interaction):
-        logger.warning(f"{interaction.user.name} use log_list:select_one")
+        logger.warning(f"{interaction.user.name} use reload_extensions:select_one")
         await interaction.response.defer(ephemeral=True)  # type: ignore
 
-        selected_cogs = self.select.values
-        await self.bot_tools.reload_cogs(
+        selected_extensions = self.select.values
+        await self.bot_tools.reload_extensions(
             interaction,
-            selected_cogs
-            if selected_cogs and "All" not in selected_cogs else
+            selected_extensions
+            if selected_extensions and "All" not in selected_extensions else
             None
         )
 

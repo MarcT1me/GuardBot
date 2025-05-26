@@ -3,11 +3,12 @@
 .idea
 
 __pycache__
-__test__
 
 *__test__*
+*log*
+*secret*
 
 *cookie*
-*.log
+*token*
 *.sqlite3*
 .env

@@ -27,7 +27,7 @@ class GuardDatabase(Database):
     channel = Channel
     template = Template
 
-    async def connect(self, *, db_url: str = "sqlite://guard_db.sqlite3") -> None:
+    async def connect(self, *, db_url: str = "sqlite://data/guard_db.sqlite3") -> None:
         self.tortoise = await Tortoise.init(
             db_url=db_url,
             modules={'models': ['bot.database.models']}
