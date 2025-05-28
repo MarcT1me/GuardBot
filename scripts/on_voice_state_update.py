@@ -30,6 +30,7 @@ async def get_embed(bot: Bot, member: discord.Member,
     return embed
 
 
+# noinspection PyUnresolvedReferences,PyDunderSlots
 async def main(*, bot: Bot, member: discord.Member,
                before: discord.VoiceState, after: discord.VoiceState):
     guild = member.guild
@@ -49,17 +50,19 @@ async def main(*, bot: Bot, member: discord.Member,
                 category=parent_channel.category,
                 reason=f"{parent_channel.name} child auto-creating",
                 user_limit=voice_settings.size,
-                position=parent_channel.position + 1
+                position=parent_channel.position
             )
             await member.move_to(temp_channel)
 
             try:
-                permissions = discord.Permissions(
-                    discord.Permissions.manage_channels | discord.Permissions.move_members
-                )
-                await temp_channel.set_permissions(member, overwrite=permissions)
+                member_permissions = temp_channel.overwrites_for(member)
+                member_permissions.manage_channels = True
+                member_permissions.move_members = True
+                member_permissions.mute_members = True
+                await temp_channel.set_permissions(member, overwrite=member_permissions)
+                logger.success(f"Set permission in {temp_channel.name} for {member.name}")
             except Exception as e:
-                logger.error(f"Can set permission in {temp_channel.name} for {member.name}: {e}")
+                logger.error(f"Can\'t set permission in {temp_channel.name} for {member.name}: {e}")
 
             await bot.guild.db.save_temp_channel(
                 channel_id=temp_channel.id,
@@ -89,7 +92,7 @@ async def main(*, bot: Bot, member: discord.Member,
                 logger.error(f"Can not send message: {e}")
 
     if before.channel:
-        db_channel: ScriptDatabase.channel | None = await bot.guild.db.get_channel_by_id(channel_id=before.channel.id)
+        db_channel: Optional[ScriptDatabase.channel] = await bot.guild.db.get_channel_by_id(channel_id=before.channel.id)
 
         if db_channel and db_channel.type == "temp_voice":
             if len(before.channel.members) == 0:

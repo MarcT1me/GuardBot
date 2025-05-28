@@ -72,6 +72,7 @@ class _SafeDataBase:
         if db_channel:
             channel_guild_id = (await db_channel.server.values("guild_id"))["guild_id"]
             return db_channel if channel_guild_id == self.__server.guild_id else None
+        return None
 
     async def save_factory_channel(self, *, channel_id: int,
                                    cooldown: float = 0.0, is_active=False) -> GuardDatabase.channel:
@@ -117,6 +118,7 @@ class _SafeDataBase:
         if db_template:
             template_guild_id = (await db_template.server.values("guild_id"))["guild_id"]
             return db_template if db_template and template_guild_id == self.__server.guild_id else None
+        return None
 
     async def save_template(self, *, name: str, content: str, is_active: bool = False) -> GuardDatabase.template:
         return await GuardDatabase.save_template(
@@ -162,12 +164,12 @@ class _SafeBot:
         self.guild = script_guild
 
     async def setup_guild_only_cog(self, cog: commands.Cog):
-        bot = GuardBot.instance
-        guild = bot.get_guild(self.guild.id)
-        if cog.__cog_name__ in bot.cogs:
-            await bot.remove_cog(cog.__cog_name__, guild=guild)
-        await bot.add_cog(cog, override=True, guild=guild)
-        await bot.tree.sync(guild=guild)
+        _bot = GuardBot.instance
+        guild = _bot.get_guild(self.guild.id)
+        if cog.__cog_name__ in _bot.cogs:
+            await _bot.remove_cog(cog.__cog_name__, guild=guild)
+        await _bot.add_cog(cog, override=True, guild=guild)
+        await _bot.tree.sync(guild=guild)
 
     err_handler = GuardBot.error_handler
     has_permission = GuardBot.has_permission

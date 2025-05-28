@@ -114,7 +114,7 @@ class ScriptCog(commands.Cog):
     ):
         try:
             ret = await self.bot.script_eng.execute(
-                script_name, interaction.guild_id if from_db else None,
+                script_name, interaction.guild_id if from_db else None, interaction.guild_id,
                 interaction=interaction,
                 **json.loads(kwargs)
             )

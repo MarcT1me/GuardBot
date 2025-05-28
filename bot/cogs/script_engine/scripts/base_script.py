@@ -192,7 +192,7 @@ class BaseScript(ABC):
     def compile(self) -> Self:
         pass
 
-    async def execute(self, guild_id: int, env_guild_id: int, **context: Any) -> Any:
+    async def execute(self, guild_id: int, **context: Any) -> Any:
         self.env_guild_id = guild_id
 
         try:
