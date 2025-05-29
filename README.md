@@ -5,35 +5,36 @@
 ![img.png](assets/GuardBot_Discord_profile.png)
 
 <!-- TOC -->
-
 * [<img alt="logo" height="30" src="assets\GuardBotLogo.png"/> GuardBot - discord bot](#img-altlogo-height30-srcassetsguardbotlogopng-guardbot---discord-bot)
-    * [@GuardBot#5373 | @GuardBot-dev#7721](#guardbot5373--guardbot-dev7721)
-        * [`Список изменений`](#список-изменений)
-            * [`фиксы`](#фиксы)
-        * [`Описание`](#описание)
-            * [`Функционал и планы`](#функционал-и-планы)
-                * [Script Engine `(IN PROGRESS)`](#script-engine-in-progress)
-                * [Voice commands `(PARTIAL FINISHED)`](#voice-commands-partial-finished)
-                * [Администрирование:  `(STARTED)`](#администрирование-started)
-                * [Социальные активности:  `(NOT STARTED)`](#социальные-активности-not-started)
-            * [`BOTDEV команды`](#botdev-команды)
-                * [`/botdev_hub`](#botdev_hub)
-                * [`/logs`](#logs)
-                * [`/script_hub`](#script_hub)
-
+          * [@GuardBot#5373 | @GuardBot-dev#7721](#guardbot5373--guardbot-dev7721)
+  * [`Список изменений`](#список-изменений)
+    * [`фиксы`](#фиксы)
+    * [`Воможные ошибки`](#воможные-ошибки)
+  * [`Описание`](#описание)
+    * [`Функционал и планы`](#функционал-и-планы)
+      * [Script Engine `(IN PROGRESS)`](#script-engine-in-progress)
+      * [Voice commands `(PARTIAL FINISHED)`](#voice-commands-partial-finished)
+      * [Администрирование:  `(STARTED)`](#администрирование-started)
+      * [Социальные активности:  `(NOT STARTED)`](#социальные-активности-not-started)
+    * [`BOTDEV команды`](#botdev-команды)
+      * [`/botdev_hub`](#botdev_hub)
+      * [`/log_hub`](#log_hub)
+      * [`/script_hub [is_light]`](#script_hub-is_light)
 <!-- TOC -->
 
 ## `Список изменений`
 
-1) деление релиз бота и бота для разработки, теперь их 2е
-2) работа с докером
-3) первый деплой на сервер
-4) попытки сделать автодеплой на сервер
+1) улучшение работы [VoiceCog](bot/cogs/voice.py)
+2) улучшенные меню [ScriptHub](bot/cogs/script.py) и [LogHub](bot/cogs/logging.py) 
 
 ### `фиксы`
 
-- адаптация путей под Linux,
-- улучшенная работа с ключами Discord API, что и позволило создать 2 аккаунта для ботов и задеплоит релизного на сервер
+- исправление багов связанных с "потуханием" потоков звука в [StreamTrack](bot/cogs/voice_core/track/stream.py)
+- возвращение [ScriptEngine](bot/cogs/script_engine/script_engine.py) в рабочее состояние
+
+### `Воможные ошибки`
+- логирование активируется только после загрузки всех расширений, что не позволяет просмотреть логи до момента загрузки.
+- сломана команда `/clear_queue`, она каким-то образом чистит и играемый трек
 
 ## `Описание`
 
@@ -171,3 +172,25 @@
 - `обновить скрипты` - обновляет guild only скрипты
 - `выполнить скрипт` - работает аналогично кнопке из меню скриптов разработчиков, что тоже помогает в работе со
   скриптами
+
+## Запуск
+- пройдите на портал [Discord dev portal](https://discord.com/developers)
+- создайте новый проект и настройте его
+  - Bot (https://discord.com/developers/applications/ID_ВАШЕГО_БОТА/bot)
+    - Presence Intent - On
+    - Server Members Intent - On
+    - Message Content Intent - On
+    - скопируйте токен в надёжное место, взять тот-же токен ещё раз не выйдет, он будет новый
+  - OAuth2 (https://discord.com/developers/applications/ID_ВАШЕГО_БОТА/oauth2)
+    - OAuth2 URL Generator
+      - bot - On
+      - application.commands - On
+      - скопируйте ссылку для установки бота, так вы найдёте своего бота во всём списке приложений Discord
+- клонируйте [репозиторий](https://github.com/MarcT1me/GuardBot)
+  - `git clone https://github.com/MarcT1me/GuardBot.git`
+  - зайдите в папку `cd GuardBot`
+- установите зависимости Python и запустите проект
+    ```cmd
+    pip install -r requiements.txt
+    python ./main.py
+```
