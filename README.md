@@ -20,6 +20,7 @@
       * [`/botdev_hub`](#botdev_hub)
       * [`/log_hub`](#log_hub)
       * [`/script_hub [is_light]`](#script_hub-is_light)
+  * [Запуск](#запуск)
 <!-- TOC -->
 
 ## `Список изменений`
@@ -190,7 +191,7 @@
   - `git clone https://github.com/MarcT1me/GuardBot.git`
   - зайдите в папку `cd GuardBot`
 - установите зависимости Python и запустите проект
-    ```cmd
+  ```cmd
     pip install -r requiements.txt
     python ./main.py
-```
+  ```
