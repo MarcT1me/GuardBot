@@ -26,7 +26,7 @@
 ## `Список изменений`
 
 1) улучшение работы [VoiceCog](bot/cogs/voice.py)
-2) улучшенные меню [ScriptHub](bot/cogs/script.py) и [LogHub](bot/cogs/logging.py) 
+2) улучшенные меню [ScriptHub](bot/cogs/script.py) и [LogHub](bot/cogs/logging.py)
 
 ### `фиксы`
 
@@ -34,6 +34,7 @@
 - возвращение [ScriptEngine](bot/cogs/script_engine/script_engine.py) в рабочее состояние
 
 ### `Воможные ошибки`
+
 - логирование активируется только после загрузки всех расширений, что не позволяет просмотреть логи до момента загрузки.
 - сломана команда `/clear_queue`, она каким-то образом чистит и играемый трек
 
@@ -144,7 +145,7 @@
 
 Команда для работы с [лог-системой](bot/cogs/logging.py)
 
-<img alt="img.png" height="80" src="assets/logs.png"/>
+<img alt="img.png" height="80" src="assets/log_hub.png"/>
 
 - кнопка `остановить` динамически меняется, в зависимости от текущего статуса логирования - `/turn_logging`
 - `получить логи` выдаёт имеющийся список логов - `/get_logs`\
@@ -175,21 +176,50 @@
   скриптами
 
 ## Запуск
+
 - пройдите на портал [Discord dev portal](https://discord.com/developers)
-- создайте новый проект и настройте его
-  - Bot (https://discord.com/developers/applications/ID_ВАШЕГО_БОТА/bot)
-    - Presence Intent - On
-    - Server Members Intent - On
-    - Message Content Intent - On
-    - скопируйте токен в надёжное место, взять тот-же токен ещё раз не выйдет, он будет новый
-  - OAuth2 (https://discord.com/developers/applications/ID_ВАШЕГО_БОТА/oauth2)
-    - OAuth2 URL Generator
-      - bot - On
-      - application.commands - On
-      - скопируйте ссылку для установки бота, так вы найдёте своего бота во всём списке приложений Discord
+    - создайте новый проект и настройте его
+        - Bot (https://discord.com/developers/applications/ID_ВАШЕГО_БОТА/bot)
+            - Presence Intent - On
+            - Server Members Intent - On
+            - Message Content Intent - On
+            - скопируйте токен в .env файл как `GUARD_BOT_API_KEY`, взять тот-же токен ещё раз не выйдет, он будет новый
+        - OAuth2 (https://discord.com/developers/applications/ID_ВАШЕГО_БОТА/oauth2)
+            - OAuth2 URL Generator
+                - bot - On
+                - application.commands - On
+                - скопируйте ссылку для установки бота, так вы найдёте своего бота во всём списке приложений Discord
+- зайдите на портал [Google Console Cloud](https://console.cloud.google.com/)
+    - создайте новый проект
+        - select a project
+        - New project (настройте название если хотите)
+    - У меня включено, но **я не уверен** необходимо ли это\
+      Этот шаг может быть излишним, но в моих планах подключение бота к официальным сервисам + я не до конца разобрался
+      с
+      работой `Google Console Cloud`, возможно он задействует этот API при работе в `OAuth 2.0 Client ID`. Так же я не
+      могу вспомнить, настраивается ли это при создании Client ID, UI меняется после создания первого Client ID, либо я
+      опять что-то напутал
+        - найдите и включите расширение
+          [YouTube Data API v3](https://console.cloud.google.com/marketplace/product/google/youtube.googleapis.com)
+        - в меню [credentials](https://console.cloud.google.com/apis/credentials) создайте новый API токен и скопируйте
+          его
+          в .env, как `GOOGLE_CONSOLE_CLOUD_YOUTUBE_API_KEY`
+            - укажите в качестве правила `YouTube Data API v3`, так токен будет привязан только к этому сервису
+    - создайте новый аккаунт Google (на всякий случай)
+        - При первом запуске бот подгрузит токен и откроет браузер, а в консоль выведет ссылку для входа, зайдите с
+          этого
+          аккаунта Google и подтвердите вход, если у вас не выходит, попробуйте добавить почту, привязанную к аккаунту в
+          [Audience](https://console.cloud.google.com/auth/audience) - `Test users`
+    - откройте меню и зайдите в [credentials](https://console.cloud.google.com/apis/credentials)
+        - создайте `OAuth 2.0 Client ID`
+            - укажите `DesktopApp` в качестве типа проекта
+            - можете настроить имя
+            - скачайте json файл с токен-ом для входа и поместите его в `secret/gc_client_secret_token.json`, чтобы бот
+              смог
+              его найти
 - клонируйте [репозиторий](https://github.com/MarcT1me/GuardBot)
-  - `git clone https://github.com/MarcT1me/GuardBot.git`
-  - зайдите в папку `cd GuardBot`
+    - `git clone https://github.com/MarcT1me/GuardBot.git`
+    - зайдите в папку `cd GuardBot`
 - установите зависимости Python и запустите проект
   ```cmd
     pip install -r requiements.txt
