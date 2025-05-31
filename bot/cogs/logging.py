@@ -1,58 +1,19 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
-from typing import Optional
 
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
 from loguru import logger
 
-from bot import GuardBot
-
-
-class GuardLogger:
-    def __init__(self, *, log_dir: str = "logs", logging_active: bool = False):
-        self.log_dir = log_dir
-        os.makedirs(self.log_dir, exist_ok=True)
-        self.logging_active: bool = logging_active
-        self.current_logger: Optional[int] = None
-
-    def start(self):
-        self.logging_active = True
-
-        file_sink = str(self.log_dir) + "/{time:DD-MM-YYYY}.log"
-        rotation = 2000000
-        retention = timedelta(hours=1)
-
-        self.current_logger = logger.start(
-            sink=file_sink,
-            encoding="utf-8",
-            rotation=rotation,
-            retention=retention,
-        )
-
-        logger.info("Логирование активировано")
-
-    def stop(self):
-        self.logging_active = False
-
-        logger.info("Логирование остановлено")
-        if self.current_logger:
-            logger.remove(self.current_logger)
+from bot import GuardBot, GuardLogger
 
 
 class LoggingCog(commands.Cog):
-    def __init__(self, bot: GuardBot, manager: GuardLogger):
+    def __init__(self, bot: GuardBot):
         self.bot: GuardBot = bot
-        self.manager: GuardLogger = manager
+        self.manager: GuardLogger = bot.logger
         self.bot.add_view(LogView(self.manager))
-
-    @commands.Cog.listener()
-    async def on_ready(self) -> None:
-        async with self.bot.wait_for_cog_loading(1):
-            pass
-            if self.manager.logging_active:
-                self.manager.start()
 
     @app_commands.command(
         name="log_hub",
@@ -67,7 +28,7 @@ class LoggingCog(commands.Cog):
 
         view = LogView(self.manager)
 
-        await interaction.response.send_message(  # type: ignore
+        return await interaction.response.send_message(  # type: ignore
             "**Панель управления логами**\n"
             "Выберите действие:",
             view=view,
@@ -191,7 +152,6 @@ async def setup(bot: GuardBot):
     logger.debug(f"⚙️ LoggingCog loading")
     await bot.add_cog(
         LoggingCog(
-            bot,
-            GuardLogger(logging_active=True)
+            bot
         )
     )

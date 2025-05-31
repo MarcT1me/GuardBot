@@ -5,6 +5,7 @@ import lib.voice_option as voice_option
 
 async def get_embed(bot: Bot, member: discord.Member,
                     template_name: str,
+                    author: discord.Member,
                     **kwargs) -> discord.Embed | None:
     template = await bot.guild.db.get_template(template_name=template_name)
     if not template:
@@ -18,13 +19,13 @@ async def get_embed(bot: Bot, member: discord.Member,
 
     parts: list[str] = template.content.split("\\")
     for i, part in iterate(parts):
-        part = part.format(member=member, **kwargs)
+        part = part.format(member=member, author=author, **kwargs)
         if i == 0:
             embed.title = part
         elif i == 1:
             embed.description = part
         elif i == 2:
-            embed.set_footer(text=part, icon_url=member.avatar.url)
+            embed.set_footer(text=part, icon_url=author.avatar.url)
 
     embed.set_thumbnail(url=member.avatar.url)
     return embed
@@ -75,9 +76,11 @@ async def main(*, bot: Bot, member: discord.Member,
             try:
                 if resp_channel := guild.get_channel(bot.guild.db.server_addition("voice_channel_announce")):
                     if embed := await get_embed(
-                            bot, member, "voice_channel_create",
+                            bot,
+                            member,
+                            "voice_channel_create",
+                            member,
                             temp_channel=temp_channel,
-                            author=member,
                             parent_channel=parent_channel,
                             option=voice_settings
                     ):
@@ -92,7 +95,8 @@ async def main(*, bot: Bot, member: discord.Member,
                 logger.error(f"Can not send message: {e}")
 
     if before.channel:
-        db_channel: Optional[ScriptDatabase.channel] = await bot.guild.db.get_channel_by_id(channel_id=before.channel.id)
+        db_channel: Optional[ScriptDatabase.channel] = await bot.guild.db.get_channel_by_id(
+            channel_id=before.channel.id)
 
         if db_channel and db_channel.type == "temp_voice":
             if len(before.channel.members) == 0:
@@ -112,9 +116,11 @@ async def main(*, bot: Bot, member: discord.Member,
                 try:
                     if resp_channel := guild.get_channel(bot.guild.db.server_addition("voice_channel_announce")):
                         if embed := await get_embed(
-                                bot, member, "voice_channel_delete",
+                                bot,
+                                member,
+                                "voice_channel_delete",
+                                guild.get_member(db_channel.additions["owner_id"]),
                                 temp_channel=before.channel,
-                                author=guild.get_member(db_channel.additions["owner_id"]),
                                 parent_channel=parent_channel
                         ):
                             await resp_channel.send(embed=embed)

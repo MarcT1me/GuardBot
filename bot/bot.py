@@ -2,14 +2,14 @@ import asyncio
 from contextlib import asynccontextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 import discord
 from discord.ext import commands
-
 from loguru import logger
 
 import bot.cogs
+from .guard_logger import GuardLogger
 from .database import GuardDatabase
 
 
@@ -37,15 +37,12 @@ class GuardBot(commands.Bot):
             cls.instance = super().__new__(cls)
         return cls.instance
 
-    def __init__(self, database: GuardDatabase):
-        intents = discord.Intents.default()
-        intents.members = True
-        intents.message_content = True
-
+    def __init__(self, intents: discord.Intents, guard_logger: GuardLogger, database: GuardDatabase):
         super().__init__(
             command_prefix="/",
             intents=intents
         )
+        self.logger = guard_logger
         self.db = database
 
         self._cog_loading_event = asyncio.Event()
@@ -71,7 +68,7 @@ class GuardBot(commands.Bot):
     def error_handler(is_defer: bool = False):
         def decorator(func):
             @wraps(func)
-            async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
+            async def wrapper(self, interaction: discord.Interaction, *args, **kwargs) -> Optional[Any]:
                 response = interaction.followup.send if is_defer else interaction.response.send_message  # type: ignore
 
                 try:
@@ -84,27 +81,27 @@ class GuardBot(commands.Bot):
                         f"❌ {target.capitalize()} не хватает прав: {', '.join(missing)}",
                         ephemeral=True
                     )
-                    logger.exception(f"{e}")
+                    return logger.exception(f"{e}")
                 except discord.app_commands.MissingPermissions as e:
                     missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
                     await response(  # type: ignore
                         f"❌` Вам не хватает прав. ||{', '.join(missing)}||",
                         ephemeral=True
                     )
-                    logger.exception(f"{e}")
+                    return logger.exception(f"{e}")
                 except discord.app_commands.BotMissingPermissions as e:
                     missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
                     await response(  # type: ignore
                         f"❌` Боту не хватает прав. ||{', '.join(missing)}||",
                         ephemeral=True
                     )
-                    logger.exception(f"{e}")
+                    return logger.exception(f"{e}")
                 except discord.Forbidden as e:
                     await response(  # type: ignore
                         f"❌ Ошибка доступа. ||{e.text}||",
                         ephemeral=True
                     )
-                    logger.exception(f"{e}")
+                    return logger.exception(f"{e}")
                 except discord.HTTPException as e:
                     error_msg = {
                         400: "Некорректные параметры",
@@ -117,13 +114,13 @@ class GuardBot(commands.Bot):
                         f"❌ Ошибка запроса. ||{error_msg}||",
                         ephemeral=True
                     )
-                    logger.exception(f"{e}")
+                    return logger.exception(f"{e}")
                 except Exception as e:
                     await response(  # type: ignore
                         f"❌ Неизвестная ошибка: {str(e)}",
                         ephemeral=True
                     )
-                    logger.exception(f"{e}")
+                    return logger.exception(f"{e}")
 
             return wrapper
 
@@ -165,9 +162,10 @@ class GuardBot(commands.Bot):
 
     @property
     def voice_state_manager(self) -> 'bot.voice_core.VoiceStateManager':
-        cog: bot.cogs.voice.VoiceCog = self.cogs.get("VoiceCog")
-        if cog:
+        cog: bot.cogs.voice.VoiceCog
+        if cog := self.cogs.get("VoiceCog"):
             return cog.voice_state_manager
+        return None
 
     async def setup_hook(self) -> None:
         """Асинхронная загрузка когов при запуске"""
