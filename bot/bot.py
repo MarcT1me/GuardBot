@@ -156,7 +156,7 @@ class GuardBot(commands.Bot):
         return False
 
     @property
-    def script_eng(self) -> 'bot.ScriptEngine':
+    def script_eng(self) -> 'bot.script_engine.ScriptEngine':
         cog: bot.cogs.script.ScriptCog = self.cogs.get("ScriptCog")
         return cog.engine
 

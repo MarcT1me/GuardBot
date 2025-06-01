@@ -5,6 +5,7 @@ from discord.ext.commands import (
     GroupCog
 )
 import discord.app_commands as _app_commands
+from discord import ui
 
 import datetime
 import asyncio
@@ -25,6 +26,8 @@ from bot import (
     GuardDatabase as _GuardDatabase
 )
 
+from abc import ABC, abstractmethod
+
 
 class discord:
     Interaction = _discord.Interaction
@@ -36,6 +39,8 @@ class discord:
     TextChannel = _discord.TextChannel
     VoiceChannel = _discord.VoiceChannel
     StageChannel = _discord.StageChannel
+
+    SelectOption = _discord.SelectOption
 
     VoiceState = _discord.VoiceState
     Permissions = _discord.Permissions

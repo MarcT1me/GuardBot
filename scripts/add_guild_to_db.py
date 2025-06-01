@@ -10,7 +10,7 @@ async def add_users(bot: Bot, interaction: discord.Interaction):
             user_id=user.id,
             voice_settings=voice_option.VoiceSettings(
                 voice_option.NameSettings.nickname,
-                voice_option.ChangeAllow.nobody,
+                voice_option.ChangeAllow.me_only,
                 0
             ).to_dict()
         )

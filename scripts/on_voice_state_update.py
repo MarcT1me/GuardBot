@@ -40,9 +40,7 @@ async def main(*, bot: Bot, member: discord.Member,
         db_channel: Optional[ScriptDatabase.channel] = await bot.guild.db.get_channel_by_id(channel_id=after.channel.id)
 
         if db_channel and db_channel.type == "voice_factory":
-            voice_settings = voice_option.VoiceSettings.from_dict(
-                (await bot.guild.db.get_user(user_id=member.id)).additions["voice_settings"]
-            )
+            voice_settings: voice_option.VoiceSettings = await voice_option.VoiceSettings.get_from_user(bot, member)
 
             parent_channel: discord.VoiceChannel = after.channel
 

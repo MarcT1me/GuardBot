@@ -15,7 +15,7 @@ from loguru import logger
 import bot
 from bot import GuardDatabase
 from .env_types import _EnvObject, _SafeEnvObject
-from .safe_types import _SafeBot, _SafeDataBase, _SafeDiscordApi, _ScriptGuild
+from .safe_types import SafeBot, _SafeDataBase, _SafeDiscordApi, _ScriptGuild
 
 
 def calculate(expr: str) -> float:
@@ -54,6 +54,7 @@ _static_script_env = {
         "setattr": setattr,
         "isinstance": isinstance,
         "issubclass": issubclass,
+        "super": super,
         "dict": dict,
         "list": list,
     },
@@ -90,7 +91,7 @@ _static_script_env = {
     # script bot env
     "ScriptDatabase": _SafeEnvObject(_SafeDataBase),
     "ScriptGuild": _SafeEnvObject(_ScriptGuild),
-    "Bot": _SafeEnvObject(_SafeBot),
+    "Bot": _SafeEnvObject(SafeBot),
 
     # safe functions
     "calculate": calculate,
@@ -109,8 +110,8 @@ class BaseScript(ABC):
     def get_type(cls, script_lang) -> Type['BaseScript'] | None:
         return _script_types.get(script_lang)
 
-    def __init__(self, engine: 'bot.ScriptEngine', guild_id: int, code: str, name: str, is_lib: bool):
-        self.engine: bot.ScriptEngine = engine
+    def __init__(self, engine: 'bot.script_engine.ScriptEngine', guild_id: int, code: str, name: str, is_lib: bool):
+        self.engine: bot.script_engine.ScriptEngine = engine
 
         self.guild_id = guild_id
         self.name = name
@@ -155,8 +156,10 @@ class BaseScript(ABC):
     def env_guild_id(self, value: int) -> None:
         self.code_env["guild_id"] = value
 
-    async def execute_main_func(self, context: dict):
-        return await self.main_func(**(await self.create_safe_context(context)))
+    async def execute_main_func(self, guild_id: int, context: dict):
+        safe_context = await self.create_safe_context(guild_id, context)
+        self.env_guild_id = guild_id
+        return await self.main_func(**safe_context)
 
     def _update_main_func(self) -> Callable:
         try:
@@ -167,15 +170,15 @@ class BaseScript(ABC):
             if not asyncio.iscoroutinefunction(self.main_func):
                 raise TypeError("Main function must be async")
 
-    async def create_safe_context(self, context: dict) -> dict:
-        context["bot"] = _SafeEnvObject(_SafeBot(
+    async def create_safe_context(self, guild_id: int, context: dict) -> dict:
+        context["bot"] = _SafeEnvObject(SafeBot(
             self.engine.bot.user,
             _SafeEnvObject(_ScriptGuild(
                 self.engine,
                 _SafeEnvObject(_SafeDataBase(
-                    await GuardDatabase.get_server(guild_id=self.env_guild_id)
+                    await GuardDatabase.get_server(guild_id=guild_id)
                 )),
-                guild_id=self.env_guild_id
+                guild=self.engine.bot.get_guild(guild_id)
             ))
         ))
 
@@ -193,11 +196,9 @@ class BaseScript(ABC):
         pass
 
     async def execute(self, guild_id: int, **context: Any) -> Any:
-        self.env_guild_id = guild_id
-
         try:
             return await asyncio.wait_for(
-                self.execute_main_func(context),
+                self.execute_main_func(guild_id, context),
                 timeout=self.engine.script_timeout
             )
         except asyncio.TimeoutError:

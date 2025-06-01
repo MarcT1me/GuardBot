@@ -1,8 +1,10 @@
 import asyncio
 from typing import Any
+from abc import abstractmethod
 
 import discord
 from discord.ext import commands
+from loguru import logger
 
 import bot
 from bot import GuardBot, GuardDatabase
@@ -18,6 +20,8 @@ class _SafeDiscordApi:
     TextChannel = discord.TextChannel
     VoiceChannel = discord.VoiceChannel
     StageChannel = discord.StageChannel
+
+    SelectOption = discord.SelectOption
 
     VoiceState = discord.VoiceState
     Permissions = discord.Permissions
@@ -130,11 +134,11 @@ class _SafeDataBase:
 
 
 class _ScriptGuild:
-    def __init__(self, engine: 'bot.ScriptEngine', db: _SafeDataBase,
-                 guild: discord.Guild = None, guild_id: int = None):
-        self.engine: bot.ScriptEngine = engine
+    def __init__(self, engine: 'bot.script_engine.ScriptEngine', db: _SafeDataBase,
+                 guild: discord.Guild = None):
+        self.engine: bot.script_engine.ScriptEngine = engine
 
-        guild = guild or GuardBot.instance.get_guild(guild_id)
+        guild = guild
 
         if guild:
             self.id: int = guild.id
@@ -147,13 +151,15 @@ class _ScriptGuild:
         self.db: _SafeDataBase = db
 
     def set_async_event(self, name: str, event: asyncio.Event) -> None:
-        bot.ScriptEngine.async_events.setdefault(self.id, {})[name] = event
+        bot.script_engine.ScriptEngine.async_events.setdefault(self.id, {})[name] = event
 
     def get_async_event(self, name: str) -> asyncio.Event:
-        return bot.ScriptEngine.async_events.setdefault(self.id, {}).get(name)
+        return bot.script_engine.ScriptEngine.async_events.setdefault(self.id, {}).get(name)
 
 
-class _SafeBot:
+class SafeBot:
+    cog_dictionary: dict[int, commands.Cog] = {}
+
     def __init__(self, bot_user: discord.User, script_guild: _ScriptGuild):
         self.name = bot_user.name
         self.global_name = bot_user.global_name
@@ -169,6 +175,7 @@ class _SafeBot:
         if cog.__cog_name__ in _bot.cogs:
             await _bot.remove_cog(cog.__cog_name__, guild=guild)
         await _bot.add_cog(cog, override=True, guild=guild)
+        SafeBot.cog_dictionary[guild.id] = cog
         await _bot.tree.sync(guild=guild)
 
     err_handler = GuardBot.error_handler
