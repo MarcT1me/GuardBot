@@ -78,7 +78,7 @@ class ChatSession:
     async def handle_message(self, message: discord.Message, user_input: str):
         client = OpenAI(api_key=self.XAI_API_KEY, base_url="https://api.x.ai/v1")
 
-        self.history.append({"role": message.author.name, "content": user_input})
+        self.history.append({"role": "user", "content": f"{message.author.name}:  {user_input}"})
 
         response_msg = await message.channel.send("GuardBot думает...")
         full_response = ""
@@ -113,7 +113,7 @@ class ChatSession:
             logger.error(f"AI error: {e}")
             await response_msg.edit(content=f"⚠️ Произошла ошибка при обработке запроса: {str(e)}")
 
-            if self.history and self.history[-1]["role"] == message.author.name:
+            if self.history and self.history[-1]["role"] == "user":
                 self.history.pop()
 
     def _clean_history(self):
