@@ -1,7 +1,6 @@
 import os
 import time
 from enum import Enum
-from queue import Queue
 
 import discord
 from discord import app_commands
@@ -13,8 +12,9 @@ from bot.bot import GuardBot
 
 
 class AiNames(str, Enum):
-    Grok3 = "grok-3"
+    Grok2 = "grok-2"
     Grok3Mini = "grok-3-mini"
+    Grok3 = "grok-3"
 
 
 class AiCog(commands.Cog):
@@ -22,12 +22,11 @@ class AiCog(commands.Cog):
         self.bot: GuardBot = bot
         self.manager = SessionManager(bot)
 
-    @app_commands.command(name="change_ai_model", description="Check AI model")
+    @app_commands.command(name="change_ai_model", description="Switch AI model")
     @GuardBot.error_handler()
     async def change_ai_model(self, interaction: discord.Interaction, ai_model: AiNames):
-        # Получаем задержку в миллисекундах
-        self.manager.session(interaction.user.id).model_name = ai_model.value
-        await interaction.response.send_message(f"Выбрана модель: `{ai_model.name}`")  # type: ignore
+        self.manager.session(interaction.user).model_name = ai_model.value
+        await interaction.response.send_message(f"Модель изменена на: `{ai_model.name}`")  # type: ignore
 
     @change_ai_model.autocomplete('ai_model')
     async def ai_model_autocomplete(
@@ -35,23 +34,17 @@ class AiCog(commands.Cog):
             _: discord.Interaction,
             current: str
     ) -> list[app_commands.Choice[str]]:
-        choices = []
-        for model in AiNames:
-            # Фильтрация по введённому тексту
-            if current.lower() in model.value.lower():
-                choices.append(
-                    app_commands.Choice(
-                        name=model.value,
-                        value=model.value
-                    )
-                )
-        return choices
+        return [
+            app_commands.Choice(name=model.name, value=model.value)
+            for model in AiNames
+            if current.lower() in model.value.lower()
+        ]
 
-    @app_commands.command(name="clear_ai_history", description="Check AI model")
+    @app_commands.command(name="clear_ai_history", description="Clear AI chat history")
     @GuardBot.error_handler()
     async def clear_ai_history(self, interaction: discord.Interaction):
-        # Получаем задержку в миллисекундах
-        self.manager.session(interaction.user.id).history = Queue(maxsize=5)
+        self.manager.delete_session(interaction.user)
+        await interaction.response.send_message("История чата очищена.")  # type: ignore
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
@@ -60,96 +53,59 @@ class AiCog(commands.Cog):
 
         if self.bot.user.mentioned_in(msg):
             session = self.manager.session(msg.author)
-
             clean_content = msg.content.replace(f"<@{self.bot.user.id}>", "GuardBot").strip()
-
-            # Работаем с сообщением
             await session.handle_message(msg, clean_content)
 
 
 class ChatSession:
     XAI_API_KEY: str = os.getenv("XAI_API_KEY")
-    MAX_HISTORY_LEN = 5
-    UPDATE_INTERVAL = 1.0
+    MAX_HISTORY_LEN = 10
+    UPDATE_INTERVAL = 0.1
 
     def __init__(self, bot: GuardBot):
         self.bot: GuardBot = bot
         self.model_name: str = "grok-3-mini"
-        self.history: list[str] = []
+        self.history: list[dict[str, str]] = []
 
         self.system_prompt = {
             "role": "system",
             "content": (
-                "Ты GuardBot, ИИ-помощник в Discord. Твои характеристики:\n"
-                "- Ты помогаешь пользователям отвечать на вопросы\n"
-                "- Отвечай кратко и информативно\n"
-                "- Ты общаешься в чате Discord сервера\n"
-                "- Используй эмодзи для выразительности 🚀\n"
-                "- Будь дружелюбным и полезным помощником"
+                "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
+                "Адаптируйся к тону чата, избегай повторений и лишних слов."
             )
         }
 
     async def handle_message(self, message: discord.Message, user_input: str):
-        client = OpenAI(
-            api_key=self.XAI_API_KEY,
-            base_url="https://api.x.ai/v1",
-        )
+        client = OpenAI(api_key=self.XAI_API_KEY, base_url="https://api.x.ai/v1")
 
-        self.history.append({
-            "role": "user",
-            "content": user_input
-        })
+        self.history.append({"role": message.author.name, "content": user_input})
 
-        response_msg = await message.channel.send("Подождите, GuardBot начал обработку вашего сообщения")
+        response_msg = await message.channel.send("GuardBot думает...")
         full_response = ""
-        is_first_chunk = True
         start_time = time.time()
-        last_update = start_time
-        model_name = self.model_name
 
         try:
             stream = client.chat.completions.create(
-                model=model_name,
+                model=self.model_name,
                 messages=[self.system_prompt, *self.history],
                 max_tokens=1000,
                 temperature=0.7,
                 stream=True
             )
 
-            async for chunk in stream:
+            for chunk in stream:
                 if chunk.choices[0].delta.content:
-                    chunk_content = chunk.choices[0].delta.content
-                    full_response += chunk_content
+                    full_response += chunk.choices[0].delta.content
+                    if time.time() - start_time >= self.UPDATE_INTERVAL:
+                        await response_msg.edit(content=full_response or "GuardBot думает...")
 
-                    current_time = time.time()
-                    if current_time - last_update >= self.UPDATE_INTERVAL or is_first_chunk:
-
-                        if len(full_response) > 2000:
-                            display_text = full_response[:1997] + "..."
-                        else:
-                            display_text = full_response
-
-                        await response_msg.edit(content=display_text)
-
-                        last_update = current_time
-                        is_first_chunk = False
-
-            self.history.append({
-                "role": "assistant",
-                "content": full_response
-            })
+            self.history.append({"role": "assistant", "content": full_response})
             self._clean_history()
 
-            end_time = time.time()
-            duration = end_time - start_time
-
-            embed = discord.Embed(
-                title="Статистика запроса",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="Длительность", value=f"{duration:.2f} сек", inline=True)
-            embed.add_field(name="Сообщений в истории", value=f"{len(self.history)}", inline=True)
-            embed.add_field(name="Модель", value=model_name, inline=True)
+            embed = discord.Embed(title="Статистика", color=discord.Color.green())
+            embed.add_field(name="Время", value=f"{time.time() - start_time:.2f} сек", inline=True)
+            embed.add_field(name="Сообщений", value=f"{len(self.history) // 2}", inline=True)
+            embed.add_field(name="Модель", value=self.model_name, inline=True)
 
             await response_msg.edit(content=full_response, embed=embed)
 
@@ -157,12 +113,12 @@ class ChatSession:
             logger.error(f"AI error: {e}")
             await response_msg.edit(content=f"⚠️ Произошла ошибка при обработке запроса: {str(e)}")
 
-            if self.history and self.history[-1]["role"] == "user":
+            if self.history and self.history[-1]["role"] == message.author.name:
                 self.history.pop()
 
     def _clean_history(self):
-        if len(self.history) > self.MAX_HISTORY_LEN + 1:
-            self.history = [self.history[0]] + self.history[-self.MAX_HISTORY_LEN:]
+        if len(self.history) // 2 > self.MAX_HISTORY_LEN:
+            self.history = self.history[-self.MAX_HISTORY_LEN * 2:]
 
 
 class SessionManager:
@@ -170,18 +126,11 @@ class SessionManager:
         self.bot: GuardBot = bot
         self.sessions: dict[int, ChatSession] = {}
 
-    def session(self, user: discord.User):
-        if user.id in self.sessions:
-            return self.get_session(user)
-        return self.create_session(user)
+    def session(self, user: discord.User) -> ChatSession:
+        return self.sessions.setdefault(user.id, ChatSession(self.bot))
 
     def get_session(self, user: discord.User) -> ChatSession | None:
         return self.sessions.get(user.id)
-
-    def create_session(self, user: discord.User) -> ChatSession:
-        seance = ChatSession(self.bot)
-        self.sessions[user.id] = seance
-        return seance
 
     def delete_session(self, user: discord.User) -> ChatSession:
         return self.sessions.pop(user.id)
