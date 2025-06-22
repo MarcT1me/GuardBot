@@ -212,7 +212,7 @@ class ScriptEngine:
             return await self.execute_script(script, guild_id, **context)
         return logger.error(f"Script {name} not found")
 
-    def get_script(self, guild_id: int, name: str) -> BaseScript:
+    def get_script(self, guild_id: int, name: str) -> BaseScript | None:
         script_field = self.scripts.get(guild_id)
         if not script_field:
             logger.warning("cant find guild script, use default")

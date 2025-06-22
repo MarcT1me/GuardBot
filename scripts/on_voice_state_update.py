@@ -31,34 +31,61 @@ async def get_embed(bot: Bot, member: discord.Member,
     return embed
 
 
+async def get_temp_channel(
+        guild: discord.Guild, member: discord.Member,
+        voice_settings: voice_option.VoiceSettings,
+        parent_channel: discord.VoiceChannel,
+        db_channel: ScriptDatabase.channel
+) -> discord.VoiceChannel:
+    cur_time = datetime.datetime.now().timestamp()
+    if (
+            cur_time + db_channel.additions["last_creating_time"] >= db_channel.additions["cooldown"]
+            or not db_channel.additions["last_created_channel"]
+    ):
+        return await guild.create_voice_channel(
+            name=voice_settings.get_name(member),
+            category=parent_channel.category,
+            reason=f"{parent_channel.name} child auto-creating",
+            user_limit=voice_settings.size,
+            position=parent_channel.position
+        )
+    else:
+        return guild.get_channel(db_channel.additions["last_created_channel"])
+
+
 # noinspection PyUnresolvedReferences,PyDunderSlots
 async def main(*, bot: Bot, member: discord.Member,
                before: discord.VoiceState, after: discord.VoiceState):
-    guild = member.guild
+    guild: discord.Guild = member.guild
 
     if after.channel:
         db_channel: Optional[ScriptDatabase.channel] = await bot.guild.db.get_channel_by_id(channel_id=after.channel.id)
 
-        if db_channel and db_channel.type == "voice_factory":
+        if db_channel and db_channel.type == "voice_factory" and db_channel.additions["is_active"]:
             voice_settings: voice_option.VoiceSettings = await voice_option.VoiceSettings.get_from_user(bot, member)
 
             parent_channel: discord.VoiceChannel = after.channel
 
-            temp_channel: discord.VoiceChannel = await guild.create_voice_channel(
-                name=voice_settings.get_name(member),
-                category=parent_channel.category,
-                reason=f"{parent_channel.name} child auto-creating",
-                user_limit=voice_settings.size,
-                position=parent_channel.position
-            )
+            temp_channel: discord.VoiceChannel = get_temp_channel(guild, member, voice_settings, parent_channel, db_channel)
             await member.move_to(temp_channel)
+            db_channel.additions["last_creating_time"] = cur_time
+            db_channel.additions["last_created_channel"] = temp.id
+            db_channel.save()
 
             try:
-                member_permissions = temp_channel.overwrites_for(member)
-                member_permissions.manage_channels = True
-                member_permissions.move_members = True
-                member_permissions.mute_members = True
-                await temp_channel.set_permissions(member, overwrite=member_permissions)
+                set_permission = voice_settings.change_allows != voice_option.ChangeAllow.nobody
+                override_obj = member \
+                    if voice_settings.change_allows == voice_option.ChangeAllow.me_only \
+                    else guild.default_role
+                member_permissions = temp_channel.overwrites_for(override_obj)
+                member_permissions.manage_channels = set_permission
+                member_permissions.move_members = set_permission
+                member_permissions.mute_members = set_permission
+                await temp_channel.set_permissions(
+                    override_obj,
+                    overwrite=member_permissions,
+                    reason=f"{parent_channel.name} child auto-creating"
+                )
                 logger.success(f"Set permission in {temp_channel.name} for {member.name}")
             except Exception as e:
                 logger.error(f"Can\'t set permission in {temp_channel.name} for {member.name}: {e}")
@@ -109,6 +136,9 @@ async def main(*, bot: Bot, member: discord.Member,
                 await bot.guild.db.delete_channel(
                     channel_id=before.channel.id
                 )
+                db_channel.additions["last_created_channel"] = None
+                db_channel.save()
+
                 logger.success("Temp voice deleted")
 
                 try:

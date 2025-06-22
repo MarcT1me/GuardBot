@@ -60,7 +60,7 @@ class AiCog(commands.Cog):
 class ChatSession:
     XAI_API_KEY: str = os.getenv("XAI_API_KEY")
     MAX_HISTORY_LEN = 10
-    UPDATE_INTERVAL = 0.1
+    UPDATE_INTERVAL = 2.5
 
     def __init__(self, bot: GuardBot):
         self.bot: GuardBot = bot
@@ -78,9 +78,12 @@ class ChatSession:
     async def handle_message(self, message: discord.Message, user_input: str):
         client = OpenAI(api_key=self.XAI_API_KEY, base_url="https://api.x.ai/v1")
 
-        self.history.append({"role": "user", "content": f"{message.author.name}:  {user_input}"})
+        self.history.append({
+            "role": "user",
+            "content": f"{message.author.name}:  {user_input}"
+        })
 
-        response_msg = await message.channel.send("GuardBot думает...")
+        response_msg = await message.reply("GuardBot думает...")
         full_response = ""
         start_time = time.time()
 
