@@ -17,7 +17,7 @@ class SettingsView(ui.View):
         self.bot: Bot = bot
         logger.debug(f"bot.guild: {self.bot.guild.name}")
 
-    @ui.button(label="change")
+    @ui.button(label="audio channels")
     async def change(self, interaction: discord.Interaction, _: ui.Button):
         await interaction.response.send_message(  # type: ignore
             "Configure changes",
@@ -46,7 +46,7 @@ class ChangeVoiceSettingsView(ui.View):
     def __init__(self, bot: Bot, voice_options: voice_option.VoiceSettings):
         super().__init__()
         self.bot: Bot = bot
-        self.voice_options: voice_options = voice_options
+        self.voice_options: voice_option.VoiceSettings = voice_options
         logger.debug(f"bot.guild: {self.bot.guild.name}")
 
     @ui.select(
@@ -76,7 +76,7 @@ class ChangeVoiceSettingsView(ui.View):
                 value="nobody",
             ),
             discord.SelectOption(
-                label="Yo only",
+                label="You only",
                 value="me_only",
             ),
             discord.SelectOption(
@@ -102,16 +102,18 @@ class ChangeVoiceSettingsView(ui.View):
 
 
 class ChangeModel(ui.Modal, title="Change settings"):
-    size = ui.TextInput(
-        label="Room size",
-        placeholder="0 for unsetted",
-        max_length=2,
-    )
-
     def __init__(self, bot: Bot, voice_options: voice_option.VoiceSettings):
         super().__init__()
         self.bot: Bot = bot
         self.voice_options: voice_options = voice_options
+
+        self.size = ui.TextInput(
+            label="Room size",
+            placeholder="0 for unsetted",
+            max_length=2,
+            default=str(voice_options.size)
+        )
+        self.add_item(self.size)
 
     async def on_submit(self, interaction: discord.Interaction, /) -> None:
         self.voice_options.size = int(self.size.value)
@@ -123,22 +125,26 @@ class ChangeModel(ui.Modal, title="Change settings"):
 
 
 class ChangeWithCustomNameModel(ui.Modal, title="Change settings (custom name)"):
-    custom_name = ui.TextInput(
-        label="Custom name",
-        min_length=0,
-        max_length=100,
-    )
-    size = ui.TextInput(
-        label="Room size",
-        placeholder="0 for unsetted",
-        max_length=2,
-    )
-
     def __init__(self, bot: Bot, voice_options: voice_option.VoiceSettings):
         super().__init__()
         self.bot: Bot = bot
         self.voice_options: voice_options = voice_options
-        self.custom_name.placeholder = "now: " + str(voice_options.custom_name)
+
+        self.size = ui.TextInput(
+            label="Room size",
+            placeholder="0 for unsetted",
+            max_length=2,
+            default=str(voice_options.size)
+        )
+        self.add_item(self.size)
+
+        self.custom_name = ui.TextInput(
+            label="Custom name",
+            min_length=0,
+            max_length=100,
+            default=str(voice_options.custom_name) if voice_options.custom_name else None,
+        )
+        self.add_item(self.custom_name)
 
     async def on_submit(self, interaction: discord.Interaction, /) -> None:
         self.voice_options.custom_name = self.custom_name.value or self.voice_options.custom_name
