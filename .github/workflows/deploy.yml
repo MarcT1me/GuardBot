@@ -21,12 +21,12 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} -p ${{ secrets.SSH_PORT }} "
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
             set -euxo pipefail
             cd GuardBot
             
             eval \"\$(ssh-agent -s)\"
-            ssh-add ~/.ssh/github_actions
+            ssh-add ~/.ssh/github_actions_deploy
           
             git pull origin master
 
