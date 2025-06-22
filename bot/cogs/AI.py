@@ -11,7 +11,7 @@ from openai import OpenAI
 from bot.bot import GuardBot
 
 
-class AiNames(str, Enum):
+class AiNames(Enum):
     Grok2 = "grok-2"
     Grok3Mini = "grok-3-mini"
     Grok3 = "grok-3"
@@ -24,9 +24,9 @@ class AiCog(commands.Cog):
 
     @app_commands.command(name="change_ai_model", description="Switch AI model")
     @GuardBot.error_handler()
-    async def change_ai_model(self, interaction: discord.Interaction, ai_model: AiNames):
-        self.manager.session(interaction.user).model_name = ai_model.value
-        await interaction.response.send_message(f"Модель изменена на: `{ai_model.name}`")  # type: ignore
+    async def change_ai_model(self, interaction: discord.Interaction, ai_model: str):
+        self.manager.session(interaction.user).model_name = ai_model
+        await interaction.response.send_message(f"Модель изменена на: `{ai_model}`", ephemeral=True)  # type: ignore
 
     @change_ai_model.autocomplete('ai_model')
     async def ai_model_autocomplete(
@@ -35,16 +35,16 @@ class AiCog(commands.Cog):
             current: str
     ) -> list[app_commands.Choice[str]]:
         return [
-            app_commands.Choice(name=model.name, value=model.value)
+            app_commands.Choice(name=model.value, value=model.value)
             for model in AiNames
-            if current.lower() in model.value.lower()
+            if all(c in model.value.lower() for c in current.lower())
         ]
 
     @app_commands.command(name="clear_ai_history", description="Clear AI chat history")
     @GuardBot.error_handler()
     async def clear_ai_history(self, interaction: discord.Interaction):
         self.manager.delete_session(interaction.user)
-        await interaction.response.send_message("История чата очищена.")  # type: ignore
+        await interaction.response.send_message("История чата очищена.", ephemeral=True)  # type: ignore
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message):
