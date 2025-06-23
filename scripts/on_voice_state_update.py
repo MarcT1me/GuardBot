@@ -25,9 +25,10 @@ async def get_embed(bot: Bot, member: discord.Member,
         elif i == 1:
             embed.description = part
         elif i == 2:
-            embed.set_footer(text=part, icon_url=author.avatar.url)
+            icon_url = author.avatar.url if author.avatar else None
+            embed.set_footer(text=part, icon_url=icon_url)
 
-    embed.set_thumbnail(url=member.avatar.url)
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else None)
     return embed
 
 
@@ -35,22 +36,24 @@ async def get_temp_channel(
         guild: discord.Guild, member: discord.Member,
         voice_settings: voice_option.VoiceSettings,
         parent_channel: discord.VoiceChannel,
-        db_channel: ScriptDatabase.channel
+        db_channel: ScriptDatabase.channel,
+        cur_time: float
 ) -> discord.VoiceChannel:
-    cur_time = datetime.datetime.now().timestamp()
-    if (
-            cur_time + db_channel.additions["last_creating_time"] >= db_channel.additions["cooldown"]
-            or not db_channel.additions["last_created_channel"]
-    ):
-        return await guild.create_voice_channel(
-            name=voice_settings.get_name(member),
-            category=parent_channel.category,
-            reason=f"{parent_channel.name} child auto-creating",
-            user_limit=voice_settings.size,
-            position=parent_channel.position
-        )
-    else:
-        return guild.get_channel(db_channel.additions["last_created_channel"])
+    last_created_id = db_channel.additions.get("last_created_channel")
+    last_created_time = db_channel.additions.get("last_creating_time", 0)
+
+    if last_created_id:
+        existing_channel = guild.get_channel(last_created_id)
+        if existing_channel and (cur_time - last_created_time) < db_channel.additions["cooldown"]:
+            return existing_channel
+
+    return await guild.create_voice_channel(
+        name=voice_settings.get_name(member),
+        category=parent_channel.category,
+        reason=f"{parent_channel.name} child auto-creating",
+        user_limit=voice_settings.size,
+        position=parent_channel.position
+    )
 
 
 # noinspection PyUnresolvedReferences,PyDunderSlots
@@ -63,29 +66,37 @@ async def main(*, bot: Bot, member: discord.Member,
 
         if db_channel and db_channel.type == "voice_factory" and db_channel.additions["is_active"]:
             voice_settings: voice_option.VoiceSettings = await voice_option.VoiceSettings.get_from_user(bot, member)
-
             parent_channel: discord.VoiceChannel = after.channel
+            cur_time = datetime.datetime.now().timestamp()
 
-            temp_channel: discord.VoiceChannel = get_temp_channel(guild, member, voice_settings, parent_channel, db_channel)
+            temp_channel: discord.VoiceChannel = await get_temp_channel(
+                guild, member,
+                voice_settings, parent_channel, db_channel,
+                cur_time
+            )
             await member.move_to(temp_channel)
+
             db_channel.additions["last_creating_time"] = cur_time
             db_channel.additions["last_created_channel"] = temp.id
-            db_channel.save()
+            await db_channel.save()
 
             try:
                 set_permission = voice_settings.change_allows != voice_option.ChangeAllow.nobody
                 override_obj = member \
                     if voice_settings.change_allows == voice_option.ChangeAllow.me_only \
                     else guild.default_role
+
                 member_permissions = temp_channel.overwrites_for(override_obj)
                 member_permissions.manage_channels = set_permission
                 member_permissions.move_members = set_permission
                 member_permissions.mute_members = set_permission
+
                 await temp_channel.set_permissions(
                     override_obj,
                     overwrite=member_permissions,
                     reason=f"{parent_channel.name} child auto-creating"
                 )
+
                 logger.success(f"Set permission in {temp_channel.name} for {member.name}")
             except Exception as e:
                 logger.error(f"Can\'t set permission in {temp_channel.name} for {member.name}: {e}")
@@ -95,7 +106,6 @@ async def main(*, bot: Bot, member: discord.Member,
                 parent_channel_id=parent_channel.id,
                 owner_id=member.id
             )
-
             logger.success("Temp voice created")
 
             try:
@@ -124,39 +134,60 @@ async def main(*, bot: Bot, member: discord.Member,
             channel_id=before.channel.id)
 
         if db_channel and db_channel.type == "temp_voice":
+            db_parent_channel: ScriptDatabase.channel = await bot.guild.db.get_channel_by_id(
+                channel_id=db_channel.additions["parent_channel_id"]
+            )
+            if not db_parent_channel:
+                logger.error(f"Parent channel not found for temp voice {before.channel.id}")
+                return
+
+            cooldown = db_parent_channel.additions["cooldown"]
+            await asyncio.sleep(cooldown)  # Исправлено: асинхронный sleep
+
+            temp_channel = guild.get_channel(before.channel.id)
+            if not temp_channel:
+                logger.warning(f"Temp channel {before.channel.id} already deleted")
+                return
+
             if len(before.channel.members) == 0:
-                db_parent_channel: ScriptDatabase.channel = await bot.guild.db.get_channel_by_id(
-                    channel_id=db_channel.additions["parent_channel_id"]
-                )
-                parent_channel: discord.VoiceChannel = guild.get_channel(db_parent_channel.id)
-
-                await before.channel.delete(
-                    reason=f"{parent_channel.name} child auto-clearing" if parent_channel else "clear tem voice"
-                )
-                await bot.guild.db.delete_channel(
-                    channel_id=before.channel.id
-                )
-                db_channel.additions["last_created_channel"] = None
-                db_channel.save()
-
-                logger.success("Temp voice deleted")
-
                 try:
-                    if resp_channel := guild.get_channel(bot.guild.db.server_addition("voice_channel_announce")):
-                        if embed := await get_embed(
-                                bot,
-                                member,
-                                "voice_channel_delete",
-                                guild.get_member(db_channel.additions["owner_id"]),
-                                temp_channel=before.channel,
-                                parent_channel=parent_channel
-                        ):
-                            await resp_channel.send(embed=embed)
-                        else:
-                            await resp_channel.send(
-                                f"User {member.mention} has left temp channel: `{before.channel.name}`\n"
-                                f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
-                                allowed_mentions=discord.AllowedMentions(users=False, roles=False)
-                            )
+                    parent_channel: discord.VoiceChannel = guild.get_channel(db_parent_channel.id)
+
+                    await temp_channel.delete(
+                        reason=f"{parent_channel.name} child auto-clearing" if parent_channel else "clear tem voice"
+                    )
+                    await bot.guild.db.delete_channel(
+                        channel_id=temp_channel.id
+                    )
+
+                    db_parent_channel.additions["last_created_channel"] = None
+                    await db_parent_channel.save()
+
+                    logger.success("Temp voice deleted")
+
+                    try:
+                        if resp_channel := guild.get_channel(bot.guild.db.server_addition("voice_channel_announce")):
+                            owner_id = db_channel.additions.get("owner_id")
+                            owner = guild.get_member(owner_id) if owner_id else None
+
+                            if embed := await get_embed(
+                                    bot,
+                                    member,
+                                    "voice_channel_delete",
+                                    owner or member,
+                                    temp_channel=temp_channel,
+                                    parent_channel=parent_channel
+                            ):
+                                await resp_channel.send(embed=embed)
+                            else:
+                                await resp_channel.send(
+                                    f"User {member.mention} has left temp channel: `{temp_channel.name}`\n"
+                                    f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
+                                    allowed_mentions=discord.AllowedMentions(users=False, roles=False)
+                                )
+                    except Exception as e:
+                        logger.error(f"Can not send message: {e}")
+                except discord.NotFound:
+                    logger.warning(f"Channel {temp_channel.id} already deleted during cooldown")
                 except Exception as e:
-                    logger.error(f"Can not send message: {e}")
+                    logger.error(f"Error deleting temp channel: {e}")

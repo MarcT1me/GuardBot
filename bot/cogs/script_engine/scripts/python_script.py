@@ -1,5 +1,4 @@
 import ast
-import os.path
 
 from .base_script import BaseScript
 
@@ -10,7 +9,7 @@ class PythonScript(BaseScript):
 
     def compile(self) -> 'PythonScript':
         if self.compiled_code:
-            return
+            return self
         self.normalize()
         self._validate_syntax()
 
@@ -39,11 +38,7 @@ class PythonScript(BaseScript):
                 data = line.split()
                 name = data[1].replace("lib.", "")
 
-                if (
-                        not self.engine.get_script(self.env_guild_id, name)
-                        or not os.path.exists(f"scripts/{name}.py")
-                        or not os.path.exists(f"scripts/lib/{name}.py")
-                ):
+                if not self.engine.get_script(self.env_guild_id, name):
                     raise ImportError(f"Script {name} not found")
 
                 l = len(data)

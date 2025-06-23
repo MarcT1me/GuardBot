@@ -1,18 +1,44 @@
 from bot.script_env import *
 
-import add_guild_to_db
+import lib.template_init as template_init
+import lib.voice_option as voice_option
 
 
-async def main(*, bot: Bot, guild: discord.Guild):
-    class FakeInteraction:
-        def __init__(self):
-            self.guild = guild
-            self.followup = guild.system_channel
+async def add_users(bot: Bot, interaction: discord.Interaction):
+    for user in interaction.guild.members:
+        await bot.guild.db.save_user(
+            user_id=user.id,
+            voice_settings=voice_option.VoiceSettings(
+                voice_option.NameSettings.nickname,
+                voice_option.ChangeAllow.me_only,
+                0
+            ).to_dict()
+        )
+    await interaction.followup.send("Users added to DataBase", ephemeral=True)
+
+
+async def main(*, bot: Bot, interaction: discord.Interaction):
+    await bot.guild.db.init(interaction.guild_id, is_active=True)
+
+    await interaction.followup.send(f"Guild: {interaction.guild} added to DataBase", ephemeral=True)
 
     try:
-        await add_guild_to_db.main(bot=bot, interaction=FakeInteraction())
+        await add_users(bot, interaction)
     except Exception as e:
-        await guild.system_channel.send(f"Error - cant init deps for server {guild}: {e}")
-        logger.exception(f"Error - cant init deps for server {guild}")
+        await interaction.followup.send(f"Error adding users: {e}", ephemeral=True)
+        logger.exception("Error adding users")
 
-    logger.success(f"init bot deps for {guild}")
+    try:
+        await template_init.init(bot)
+        await interaction.followup.send(
+            "Template added to GuardDatabase",
+            ephemeral=True
+        )
+    except Exception as e:
+        await interaction.followup.send(
+            f"Error adding templates: {e}",
+            ephemeral=True
+        )
+        logger.exception("Error adding templates")
+
+    logger.success(f"init bot deps for {interaction.guild}")
