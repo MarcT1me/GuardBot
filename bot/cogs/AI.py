@@ -114,10 +114,19 @@ class ChatSession:
 
         except Exception as e:
             logger.error(f"AI error: {e}")
-            await response_msg.edit(content=f"⚠️ Произошла ошибка при обработке запроса: {str(e)}")
 
             if self.history and self.history[-1]["role"] == "user":
                 self.history.pop()
+
+            embed = discord.Embed(title="Статистика", color=discord.Color.red())
+            embed.add_field(name="Время", value=f"{time.time() - start_time:.2f} сек", inline=True)
+            embed.add_field(name="Сообщений", value=f"{len(self.history) // 2}", inline=True)
+            embed.add_field(name="Модель", value=self.model_name, inline=True)
+
+            await response_msg.edit(
+                content=f"{full_response}\n⚠️ Произошла ошибка при обработке запроса: {str(e)}",
+                embed=embed
+            )
 
     def _clean_history(self):
         if len(self.history) // 2 > self.MAX_HISTORY_LEN:
