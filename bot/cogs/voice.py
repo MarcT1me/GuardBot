@@ -441,7 +441,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -461,8 +461,9 @@ class VoiceCog(commands.Cog):
                     )
 
                     track.cleanup()
+                return None
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -493,7 +494,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -515,8 +516,9 @@ class VoiceCog(commands.Cog):
                     await voice_state.play_next(interaction)
                 else:
                     await voice_state.stop()
+                return None
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -547,23 +549,23 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
                 if voice_state.is_playing:
                     await voice_state.pause()
-                    await interaction.response.send_message(  # type: ignore
+                    return await interaction.response.send_message(  # type: ignore
                         f"Поставил на паузу **{voice_state.current_track.beautiful_title}**."
                     )
                 else:
-                    await interaction.response.send_message(  # type: ignore
+                    return await interaction.response.send_message(  # type: ignore
                         f"Воспроизведение итак на паузе.",
                         ephemeral=True
                     )
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -594,7 +596,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -605,13 +607,14 @@ class VoiceCog(commands.Cog):
                         await interaction.response.send_message(  # type: ignore
                             f"Продолжаю играть **{voice_state.current_track.beautiful_title}**."
                         )
+                    return None
                 else:
-                    await interaction.response.send_message(  # type: ignore
+                    return await interaction.response.send_message(  # type: ignore
                         f"Воспроизведение не было на паузе.",
                         ephemeral=True
                     )
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -642,7 +645,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -650,9 +653,9 @@ class VoiceCog(commands.Cog):
                 await interaction.response.send_message(  # type: ignore
                     f"Останавливаю воспроизведение **{voice_state.current_track.beautiful_title}**."
                 )
-                await voice_state.stop()
+                return await voice_state.stop()
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -683,7 +686,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -696,11 +699,11 @@ class VoiceCog(commands.Cog):
                 await voice_state.stop()
                 await voice_state.cleanup()
 
-                await interaction.followup.send(  # type: ignore
+                return await interaction.followup.send(  # type: ignore
                     "Очистил все воспроизведения"
                 )
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -724,7 +727,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -748,12 +751,12 @@ class VoiceCog(commands.Cog):
                                 (f"**{track.beautiful_title}**\n" if track.info else f"`{track.url}`\n")
                         )
 
-                await interaction.followup.send(  # type: ignore
+                return await interaction.followup.send(  # type: ignore
                     GuardBot.normalize_response_size(resp),
                     ephemeral=True
                 )
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -784,7 +787,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -794,13 +797,13 @@ class VoiceCog(commands.Cog):
 
                 await interaction.response.defer()  # type: ignore
 
-                await voice_state.cleanup()
+                await voice_state.cleanup_queue()
 
-                await interaction.followup.send(  # type: ignore
+                return await interaction.followup.send(  # type: ignore
                     "Очистил список воспроизведения"
                 )
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )
@@ -828,7 +831,7 @@ class VoiceCog(commands.Cog):
 
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
-                await interaction.response.send_message(  # type: ignore
+                return await interaction.response.send_message(  # type: ignore
                     f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
@@ -851,11 +854,11 @@ class VoiceCog(commands.Cog):
                         self.execution_paused_time_passed = erl
                     await asyncio.sleep(1)
 
-                await interaction.followup.send(  # type: ignore
+                return await interaction.followup.send(  # type: ignore
                     "Время прошло, можно снова использовать войс команды"
                 )
         else:
-            await interaction.response.send_message(  # type: ignore
+            return await interaction.response.send_message(  # type: ignore
                 "Не могу! Я не нахожусь ни в каком звуковом канале.",
                 ephemeral=True
             )

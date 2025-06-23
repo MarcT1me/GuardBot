@@ -129,7 +129,9 @@ class VoiceState:
         )
         logger.info(f"play track, {self.current_track.beautiful_title}")
 
-    async def _handle_playback(self, error: Optional[Exception], interaction: discord.Interaction):
+    async def _handle_playback(
+            self, error: Optional[Exception], interaction: discord.Interaction
+    ) -> discord.Message | None:
         if error:
             logger.error(f"Playback error: {str(error)}")
             return await interaction.followup.send(f"Ошибка воспроизведения: {str(error)}")
@@ -137,6 +139,7 @@ class VoiceState:
         if self.current_track:
             self.current_track.cleanup()
             self.current_track = None
+        return None
 
     async def pause(self) -> None:
         if self.is_playing and self.current_track:
@@ -156,15 +159,21 @@ class VoiceState:
 
         if self.current_track:
             logger.info(f"stop track, {self.current_track.beautiful_title}")
-            self.current_track.cleanup()
-            self.current_track = None
+            await self.cleanup_current()
 
     async def cleanup(self) -> None:
         self._is_active = False
 
+        await self.cleanup_current()
+
+        await self.cleanup_queue()
+
+    async def cleanup_current(self) -> None:
         if self.current_track:
             self.current_track.cleanup()
+            self.current_track = None
 
+    async def cleanup_queue(self) -> None:
         for i in range(len(self.queue)):
             self.queue.pop().cleanup()
 
@@ -192,6 +201,7 @@ class VoiceStateManager:
             self.voice_states[guild_id] = VoiceState()
         return self.voice_states[guild_id]
 
-    def remove(self, guild_id: int) -> VoiceState:
+    def remove(self, guild_id: int) -> VoiceState | None:
         if guild_id in self.voice_states:
             return self.voice_states.pop(guild_id)
+        return None
