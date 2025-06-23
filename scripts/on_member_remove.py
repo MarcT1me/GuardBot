@@ -23,6 +23,6 @@ async def main(*, bot: Bot, member: discord.Member):
             )
         except Exception as e:
             await system_channel.send(
-                f"{member.mention} вышел с сервера"
+                f"{member.mention} has left from server"
             )
             logger.exception(f"User farewell error: {e}")

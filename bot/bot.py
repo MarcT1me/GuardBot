@@ -52,7 +52,7 @@ class GuardBot(commands.Bot):
 
     @staticmethod
     def normalize_response_reason(response: str, reason: str) -> str:
-        return response + "\nПричина: " + reason if reason else ""
+        return response + "\nReason: " + reason if reason else ""
 
     @staticmethod
     def normalize_response_size(response: str, size=2000, end="\n...") -> str:
@@ -78,46 +78,46 @@ class GuardBot(commands.Bot):
                     missing = [perm.replace('_', ' ').title() for perm in e.missing]
                     target = "боту" if e.target == "bot" else "вам"
                     await response(
-                        f"❌ {target.capitalize()} не хватает прав: {', '.join(missing)}",
+                        f"❌ {target.capitalize()} don't have enough rights: {', '.join(missing)}",
                         ephemeral=True
                     )
                     return logger.exception(f"{e}")
                 except discord.app_commands.MissingPermissions as e:
                     missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
                     await response(  # type: ignore
-                        f"❌` Вам не хватает прав. ||{', '.join(missing)}||",
+                        f"❌` You don't have enough rights. ||{', '.join(missing)}||",
                         ephemeral=True
                     )
                     return logger.exception(f"{e}")
                 except discord.app_commands.BotMissingPermissions as e:
                     missing = [perm.replace('_', ' ').title() for perm in e.missing_permissions]
                     await response(  # type: ignore
-                        f"❌` Боту не хватает прав. ||{', '.join(missing)}||",
+                        f"❌` The bot lacks rights. ||{', '.join(missing)}||",
                         ephemeral=True
                     )
                     return logger.exception(f"{e}")
                 except discord.Forbidden as e:
                     await response(  # type: ignore
-                        f"❌ Ошибка доступа. ||{e.text}||",
+                        f"❌ Access error. ||{e.text}||",
                         ephemeral=True
                     )
                     return logger.exception(f"{e}")
                 except discord.HTTPException as e:
                     error_msg = {
-                        400: "Некорректные параметры",
-                        404: "Сущность не найдена",
-                        429: "Слишком много запросов",
-                        500: "Внутренняя ошибка сервера Discord"
-                    }.get(e.status, f"Ошибка API {e.text}")
+                        400: "Incorrect parameters",
+                        404: "Entity not found",
+                        429: "Too many requests",
+                        500: "Internal error on Discord server"
+                    }.get(e.status, f"API error {e.text}")
 
                     await response(  # type: ignore
-                        f"❌ Ошибка запроса. ||{error_msg}||",
+                        f"❌ Request error. ||{error_msg}||",
                         ephemeral=True
                     )
                     return logger.exception(f"{e}")
                 except Exception as e:
                     await response(  # type: ignore
-                        f"❌ Неизвестная ошибка: {str(e)}",
+                        f"❌ Unknown error: {str(e)}",
                         ephemeral=True
                     )
                     return logger.exception(f"{e}")
@@ -175,7 +175,12 @@ class GuardBot(commands.Bot):
     @commands.Cog.listener()
     async def on_ready(self):
         self._cog_loading_event.set()
+        await self.set_status("ready for operation")
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
+
+    async def set_status(self, status: str):
+        activity = discord.CustomActivity(name=status)  # Кастомный статус
+        await self.change_presence(activity=activity)
 
     @asynccontextmanager
     async def wait_for_cog_loading(self, index: int):

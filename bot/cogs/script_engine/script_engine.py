@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 from typing import Any, Optional
+import discord
 
 from loguru import logger
 from lupa.lua54 import LuaRuntime
@@ -49,14 +50,17 @@ class ScriptEngine:
         logger.info("setup on_ready.data for guilds\n")
 
         for guild in self.bot.guilds:
-            script_name, guild_id = await self.get_event_script(None, "on_ready")
-            await self.execute(
-                script_name,
-                guild_id,
-                guild.id,
-                guild=guild
-            )
-            logger.success(f"`{guild}` data ready\n")
+            await self.guild_on_ready(guild)
+
+    async def guild_on_ready(self, guild: discord.Guild) -> None:
+        script_name, guild_id = await self.get_event_script(guild, "on_ready")
+        await self.execute(
+            script_name,
+            guild_id,
+            guild.id,
+            guild=guild
+        )
+        logger.success(f"`{guild}` data ready\n")
 
     async def get_event_script(self, guild, event_name: str) -> tuple[GuardDatabase.script, int]:
         if not guild:

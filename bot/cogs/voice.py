@@ -31,7 +31,7 @@ class VoiceCog(commands.Cog):
 
     @app_commands.command(
         name="join",
-        description="подключиться к вашему каналу"
+        description="connect to your channel"
     )
     @app_commands.describe(force="позволяет перейти в канал")
     @app_commands.guild_only
@@ -39,15 +39,15 @@ class VoiceCog(commands.Cog):
     async def join(self, interaction: discord.Interaction, force: bool = False):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -57,8 +57,8 @@ class VoiceCog(commands.Cog):
         await interaction.response.defer()  # type: ignore
 
         if not force and voice_state.current_channel:
-            await interaction.followup.send(  # type: ignore
-                f"Не могу! Сейчас я в канале: {voice_state.current_channel.mention}.",
+            return await interaction.followup.send(  # type: ignore
+                f"I can\'t! I'm currently in the channel: {voice_state.current_channel.mention}.",
                 ephemeral=True
             )
         else:
@@ -74,12 +74,13 @@ class VoiceCog(commands.Cog):
                 )
             finally:
                 await interaction.followup.send(  # type: ignore
-                    f"Зашёл в канал: {user_voice.channel.mention}."
+                    f"Join into {user_voice.channel.mention}."
                 )
+        return None
 
     @app_commands.command(
         name="disconnect",
-        description="отключиться от канала"
+        description="disconnect from the channel"
     )
     @app_commands.describe(force="выйду из канала в любом случае")
     @app_commands.guild_only
@@ -87,15 +88,15 @@ class VoiceCog(commands.Cog):
     async def disconnect(self, interaction: discord.Interaction, force: bool = False):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
-        if not force and not user_voice:
+        if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You\'re not in the sound channel.",
                 ephemeral=True
             )
 
@@ -107,7 +108,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if not force and voice_state.current_channel.id != user_voice.channel.id:
                 await interaction.followup.send(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -122,36 +123,37 @@ class VoiceCog(commands.Cog):
                     )
                 finally:
                     await interaction.followup.send(  # type: ignore
-                        f"Выхожу из канала: {voice_state.current_channel.mention}."
+                        f"I\'m leaving the channel: {voice_state.current_channel.mention}."
                     )
                     await voice_state.disconnect()
         else:
             await interaction.followup.send(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
+        return None
 
     @app_commands.command(
         name="play",
-        description="проигрывает YouTube ссылку без очереди"
+        description="play YouTube link without queue"
     )
     @app_commands.describe(
-        url="ссылка для проигрывания",
+        url="YouTube link",
     )
     @app_commands.guild_only
     @GuardBot.error_handler(is_defer=True)
     async def play(self, interaction: discord.Interaction, url: str):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -163,7 +165,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 await interaction.followup.send(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -181,34 +183,35 @@ class VoiceCog(commands.Cog):
                     await self._play_audio_stream(interaction, voice_state, url)
         else:
             await interaction.followup.send(  # type: ignore
-                f"Захожу в канал {user_voice.channel.mention}, чтобы проиграть звук"
+                f"I\'m connecting to the channel {user_voice.channel.mention} for audio playback"
             )
 
             await voice_state.connect_or_move(user_voice.channel)
 
             await self._play_audio_stream(interaction, voice_state, url)
+        return None
 
     @app_commands.command(
         name="add_track",
-        description="добавляет YouTube ссылку в очередь"
+        description="add YouTube link into queue"
     )
     @app_commands.describe(
-        url="ссылка что я должен добавить в очередь",
+        url="YouTube link",
     )
     @app_commands.guild_only
     @GuardBot.error_handler(is_defer=True)
     async def add_track(self, interaction: discord.Interaction, url: str):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -220,19 +223,20 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 await interaction.followup.send(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
                 await self._add_track_to_queue(interaction, voice_state, url)
         else:
             await interaction.followup.send(  # type: ignore
-                f"Захожу в канал {user_voice.channel.mention}, чтобы проиграть звук"
+                f"I\'m connecting to the channel {user_voice.channel.mention} for audio playback"
             )
 
             await voice_state.connect_or_move(user_voice.channel)
 
             await self._play_audio_stream(interaction, voice_state, url)
+        return None
 
     async def _play_audio_stream(
             self,
@@ -248,16 +252,17 @@ class VoiceCog(commands.Cog):
         try:
             logger.debug(f"start playing  {track.beautiful_title}")
             await load_message.edit(
-                content=f"Воспроизвожу: **{track.beautiful_title}**"
+                content=f"Play: **{track.beautiful_title}**"
             )
 
             await voice_state.play(track, interaction)
         except:
             await interaction.followup.send(
-                f"Не смог воспроизвести **{track.beautiful_title}**"
+                f"Couldn\'t play **{track.beautiful_title}**"
             )
             logger.error(f"error playing {track.beautiful_title}")
             raise
+        return None
 
     async def _add_track_to_queue(
             self,
@@ -275,14 +280,15 @@ class VoiceCog(commands.Cog):
 
             logger.debug(f"add to queue {url}")
             await load_message.edit(
-                content=f"Добавил трэк  **{track.beautiful_title}** в очередь"
+                content=f"Added track **{track.beautiful_title}** to queue"
             )
         except:
             await interaction.followup.send(
-                f"Не смог добавить  **{track.beautiful_title}** в список воспроизведений"
+                f"Couldn\'t add **{track.beautiful_title}** to the queue"
             )
             logger.error(f"error adding to queue  {track.beautiful_title}")
             raise
+        return None
 
     async def _handle_playlist(
             self,
@@ -292,7 +298,7 @@ class VoiceCog(commands.Cog):
     ):
         if len(playlist_info['entries']) > 50:
             await interaction.followup.send(
-                f"⚡ Слишком много треков, я загружу первые 50"
+                f"⚡ There are too many tracks, I\'ll load the first 50"
             )
 
         entries = playlist_info['entries'][:50]
@@ -307,12 +313,12 @@ class VoiceCog(commands.Cog):
         )
 
         start_load_message: discord.Message = await interaction.followup.send(
-            f"🎶 Загружаю плейлист {get_playlist_beautiful_title()}\n"
-            f"({total} треков)..."
+            f"🎶 Loading playlist {get_playlist_beautiful_title()}\n"
+            f"({total} tracks)..."
         )
-        content = f"✅ Добавлено `0/{total}` треков"
+        content = f"✅ Added `0/{total}` tracks"
         load_message: discord.Message = await interaction.followup.send(
-            f"✅ Добавлено `0/{total}` треков"
+            f"✅ Added `0/{total}` tracks"
         )
 
         play_task: Optional[asyncio.Task] = None
@@ -323,7 +329,7 @@ class VoiceCog(commands.Cog):
                 continue
             if self.execution_pause_time:
                 await interaction.followup.send(
-                    f"Админ остановил загрузки плейлистов...",
+                    f"The admin stopped loading playlists...",
                     ephemeral=True
                 )
                 break
@@ -336,18 +342,18 @@ class VoiceCog(commands.Cog):
                 )
                 await voice_state.add_source(track)
                 added += 1
-                content = f"✅ Добавлено `{added}/{total}` треков" + (f"(не вышло `{errors}`)" if errors else "")
+                content = f"✅ Added `{added}/{total}` tracks" + (f"(`{errors}` not released)" if errors else "")
                 await load_message.edit(
                     content=content +
-                            f"\nзагрузил трек      `{entry['url']}`"
+                            f"\nloaded a track      `{entry['url']}`"
                 )
 
                 # play if not playing
                 if not voice_state.is_playing:
                     play_task = asyncio.create_task(voice_state.play_next(interaction))
                     await interaction.followup.send(
-                        f"Начинаю воспроизведение плейлиста **{get_playlist_beautiful_title()}** "
-                        f"с трека: **{track.beautiful_title}**",
+                        f"I\'m starting to play the playlist **{get_playlist_beautiful_title()}** "
+                        f"with track: **{track.beautiful_title}**",
                         ephemeral=True
                     )
             except Exception as e:
@@ -358,8 +364,8 @@ class VoiceCog(commands.Cog):
             await load_message.delete()
 
         await start_load_message.edit(
-            content=f"🎵 Плейлист **{get_playlist_beautiful_title()}** добавлен в очередь\n"
-                    f"(`{added}` треков из `{total}`" + (f", не вышло `{errors}`)" if errors else ")")
+            content=f"🎵 **{get_playlist_beautiful_title()}** playlist added to queue\n"
+                    f"(`{added}` tracks out o `{total}`" + (f", `{errors}` not released)" if errors else ")")
         )
 
         if play_task:
@@ -379,18 +385,18 @@ class VoiceCog(commands.Cog):
         try:
             if message:
                 await message.edit(
-                    content=message_text + "\n" + f"Подождите, загружаю `{url}`..."
+                    content=message_text + "\n" + f"Wait, I\'m loading `{url}`..."
                 )
             else:
                 message = await interaction.followup.send(
-                    f"Подождите, загружаю `{url}`..."
+                    f"Wait, I\'m loading `{url}`..."
                 )
 
             return voice_core.TrackStream(url), message
         except Exception as e:
             logger.error(f"error load URL: {e}")
             await interaction.followup.send(
-                f"Не вышло загрузить: `{url}`"
+                f"Couldn't load: `{url}`"
             )
             raise
 
@@ -407,32 +413,32 @@ class VoiceCog(commands.Cog):
             await asyncio.sleep(time)
         except:
             await interaction.followup.send(
-                f"Не смог воспроизвести **{track.beautiful_title}**"
+                f"Couldn't play **{track.beautiful_title}**"
             )
             logger.error(f"error playing {track.beautiful_title}")
             raise
 
     @app_commands.command(
         name="remove_track",
-        description="удаляет трек из очереди"
+        description="delete a track at index"
     )
     @app_commands.describe(
-        index="номер трека в очереди"
+        index="The track index"
     )
     @app_commands.guild_only
     @GuardBot.error_handler()
     async def remove_track(self, interaction: discord.Interaction, index: int = 0):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -442,21 +448,21 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
                 if queue := voice_state.queue:
                     if 0 > index >= len(queue):
                         return await interaction.response.send_message(  # type: ignore
-                            "Индекс за пределами очереди!",
+                            "The index is outside the queue!",
                             ephemeral=True
                         )
 
                     track = queue.pop(index - 1)
 
                     await interaction.response.send_message(  # type: ignore
-                        f"Удаляю трек {track.beautiful_title}",
+                        f"Deleting track {track.beautiful_title}",
                         ephemeral=True
                     )
 
@@ -464,28 +470,28 @@ class VoiceCog(commands.Cog):
                 return None
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
     @app_commands.command(
         name="play_next",
-        description="пропускает трек"
+        description="skips the current track"
     )
     @app_commands.guild_only
     @GuardBot.error_handler()
     async def play_next(self, interaction: discord.Interaction):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -495,21 +501,21 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
                 if voice_state.current_track:
                     await interaction.response.send_message(  # type: ignore
-                        f"Пропускаю **{voice_state.current_track.beautiful_title}**"
+                        f"Skipping **{voice_state.current_track.beautiful_title}**"
                     )
                 elif voice_state.queue:
                     await interaction.response.send_message(  # type: ignore
-                        f"Переключаюсь на **{voice_state.queue[0].beautiful_title}**"
+                        f"Switching to **{voice_state.queue[0].beautiful_title}**"
                     )
                 else:
                     await interaction.response.send_message(  # type: ignore
-                        f"Не могу, очередь пуста"
+                        f"I can\'t, the queue is empty"
                     )
 
                 if voice_state.queue:
@@ -519,7 +525,7 @@ class VoiceCog(commands.Cog):
                 return None
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
@@ -532,15 +538,15 @@ class VoiceCog(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -550,23 +556,23 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
                 if voice_state.is_playing:
                     await voice_state.pause()
                     return await interaction.response.send_message(  # type: ignore
-                        f"Поставил на паузу **{voice_state.current_track.beautiful_title}**."
+                        f"I paused the **{voice_state.current_track.beautiful_title}**."
                     )
                 else:
                     return await interaction.response.send_message(  # type: ignore
-                        f"Воспроизведение итак на паузе.",
+                        f"Playback is now on pause.",
                         ephemeral=True
                     )
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
@@ -579,15 +585,15 @@ class VoiceCog(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -597,7 +603,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -605,38 +611,38 @@ class VoiceCog(commands.Cog):
                     await voice_state.resume()
                     if voice_state.current_track:
                         await interaction.response.send_message(  # type: ignore
-                            f"Продолжаю играть **{voice_state.current_track.beautiful_title}**."
+                            f"I keep playing the **{voice_state.current_track.beautiful_title}**."
                         )
                     return None
                 else:
                     return await interaction.response.send_message(  # type: ignore
-                        f"Воспроизведение не было на паузе.",
+                        f"Playback was not paused.",
                         ephemeral=True
                     )
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
     @app_commands.command(
         name="stop",
-        description="останавливает трек"
+        description="stopping the current playback"
     )
     @app_commands.guild_only
     @GuardBot.error_handler()
     async def stop(self, interaction: discord.Interaction):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -646,38 +652,38 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
                 await interaction.response.send_message(  # type: ignore
-                    f"Останавливаю воспроизведение **{voice_state.current_track.beautiful_title}**."
+                    f"Stopping playback **{voice_state.current_track.beautiful_title}**."
                 )
                 return await voice_state.stop()
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
     @app_commands.command(
         name="stop_all",
-        description="останавливает играемый трек и очищает очередь"
+        description="stops the track being played and clears the queue."
     )
     @app_commands.guild_only
     @GuardBot.error_handler()
     async def stop_all(self, interaction: discord.Interaction):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -687,7 +693,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -700,25 +706,32 @@ class VoiceCog(commands.Cog):
                 await voice_state.cleanup()
 
                 return await interaction.followup.send(  # type: ignore
-                    "Очистил все воспроизведения"
+                    "Cleared all playback"
                 )
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
     @app_commands.command(
         name="show_queue",
-        description="показывает очередь проигрывания"
+        description="shows the playback queue"
     )
     @app_commands.guild_only
     @GuardBot.error_handler(is_defer=True)
     async def show_queue(self, interaction: discord.Interaction):
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
+                ephemeral=True
+            )
+
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -728,7 +741,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -738,12 +751,12 @@ class VoiceCog(commands.Cog):
                 await interaction.response.defer(ephemeral=True)  # type: ignore
 
                 if voice_state.current_track and voice_state.current_track.source:
-                    resp = f"Сейчас играет: **{voice_state.current_track.beautiful_title}**\n"
+                    resp = f"Currently playing: **{voice_state.current_track.beautiful_title}**\n"
                 else:
-                    resp = f"Сейчас ничего не играет\n"
+                    resp = f"Nothing is playing right now\n"
 
                 if voice_state.queue:
-                    resp += "В очереди лежат:\n"
+                    resp += "In the queue are:\n"
 
                     async for i, track in voice_state.iter_queue():
                         resp += (
@@ -757,28 +770,28 @@ class VoiceCog(commands.Cog):
                 )
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
     @app_commands.command(
         name="clear_queue",
-        description="очищает очередь проигрываний"
+        description="clears the playback queue"
     )
     @app_commands.guild_only
     @GuardBot.error_handler()
     async def clear_queue(self, interaction: discord.Interaction):
         if self.execution_pause_time:
             return await interaction.response.send_message(  # type: ignore
-                f"Сейчас все войс команды приостановлены админом!"
-                f"Подождите {int(self.execution_paused_time_still)} секунд",
+                f"Now all voice commands are suspended by the admin!"
+                f"Wait {int(self.execution_paused_time_still)} seconds",
                 ephemeral=True
             )
 
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -788,7 +801,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -800,11 +813,11 @@ class VoiceCog(commands.Cog):
                 await voice_state.cleanup_queue()
 
                 return await interaction.followup.send(  # type: ignore
-                    "Очистил список воспроизведения"
+                    "Cleared the queue"
                 )
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 
@@ -822,7 +835,7 @@ class VoiceCog(commands.Cog):
         user_voice = interaction.user.voice
         if not user_voice:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Ты не в звуковом канале.",
+                "I can\'t! You're not in the sound channel.",
                 ephemeral=True
             )
 
@@ -832,7 +845,7 @@ class VoiceCog(commands.Cog):
         if voice_state.current_channel:
             if voice_state.current_channel.id != user_voice.channel.id:
                 return await interaction.response.send_message(  # type: ignore
-                    f"Не могу! Я в другом канале: {voice_state.current_channel.mention}.",
+                    f"I can\'t! I\'m in another channel: {voice_state.current_channel.mention}.",
                     ephemeral=True
                 )
             else:
@@ -859,7 +872,7 @@ class VoiceCog(commands.Cog):
                 )
         else:
             return await interaction.response.send_message(  # type: ignore
-                "Не могу! Я не нахожусь ни в каком звуковом канале.",
+                "I can\'t! I am not in any sound channel.",
                 ephemeral=True
             )
 

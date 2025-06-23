@@ -7,18 +7,33 @@ class ServerCog(Cog):
         self.bot: Bot = bot
         logger.success(f"Setup guild only cog -> {bot.guild.name}")
 
-    def get_settings_view(self) -> ui.View:
-        return SettingsView(self.bot)
+    def get_settings_view(self, interaction: discord.Interaction) -> ui.View:
+        return SettingsView(self.bot, interaction)
 
 
 class SettingsView(ui.View):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot, interaction: discord.Interaction):
         super().__init__()
         self.bot: Bot = bot
         logger.debug(f"bot.guild: {self.bot.guild.name}")
 
+        if interaction.user.guild_permissions.administrator:
+            btn = ui.Button(label="Admin")
+            btn.callback = self.admin_settings
+            self.add_item(btn)
+
+    async def admin_settings(self, interaction: discord.Interaction):
+        await interaction.response.send_message(  # type: ignore
+            "Admin Settings pannel",
+            view=AdminSettingsView(
+                self.bot,
+                interaction,
+            ),
+            ephemeral=True
+        )
+
     @ui.button(label="audio channels")
-    async def change(self, interaction: discord.Interaction, _: ui.Button):
+    async def audio_change(self, interaction: discord.Interaction, _: ui.Button):
         await interaction.response.send_message(  # type: ignore
             "Configure changes",
             view=ChangeVoiceSettingsView(
@@ -154,6 +169,86 @@ class ChangeWithCustomNameModel(ui.Modal, title="Change settings (custom name)")
             "Change commited!",
             ephemeral=True
         )
+
+
+class AdminSettingsView(ui.View):
+    def __init__(self, bot: Bot, interaction: discord.Interaction):
+        super().__init__()
+        self.bot: Bot = bot
+        self.interaction: discord.Interaction = interaction
+
+    @ui.button(label="Add voice factory")
+    async def add_voice_factory(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.send_modal(  # type: ignore
+            AddVoiceFactoryModel(self.bot)
+        )
+
+    @ui.button(label="Remove voice factory")
+    async def rem_voice_factory(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.send_modal(  # type: ignore
+            RemVoiceFactoryModel(self.bot)
+        )
+
+    @ui.button(label="Display voice factory")
+    async def display_voice_factory(self, interaction: discord.Interaction, _: ui.Button):
+        resp = "Channel factories:\n```\n"
+        for channel in await self.bot.guild.db.get_channels(channel_type="voice_factory"):
+            resp += f"{channel.id}: {channel.additions}\n"
+        resp += "```\n"
+        resp += f"Announce channel:\n```\n{self.bot.guild.db.server_addition("voice_channel_announce")}```\n"
+        await interaction.response.send_message(resp, ephemeral=True)  # type: ignore
+
+
+class AddVoiceFactoryModel(ui.Modal, title="Add voice factory"):
+    channel_id = ui.TextInput(
+        label="factory channel id",
+        placeholder="1371111444402333333 for example",
+    )
+    cooldown = ui.TextInput(
+        label="channel cooldown",
+        default="5.5"
+    )
+    is_active = ui.TextInput(
+        label="is active",
+        default="True"
+    )
+
+    def __init__(self, bot: Bot):
+        super().__init__()
+        self.bot: Bot = bot
+
+        self.announce_channel = ui.TextInput(
+            label="announce channel id",
+            placeholder="1371111444402333333 for example",
+            default=self.bot.guild.db.server_addition("voice_channel_announce")
+        )
+        self.add_item(self.announce_channel)
+
+    async def on_submit(self, interaction: discord.Interaction, /) -> None:
+        logger.debug("try save")
+        await self.bot.guild.db.save_factory_channel(
+            channel_id=int(self.channel_id.value),
+            cooldown=float(self.cooldown.value),
+            is_active=self.is_active.value == "True",
+        )
+        await self.bot.guild.db.save_server_addition(
+            "voice_channel_announce", self.announce_channel.value
+        )
+        await interaction.response.send_message("successfully add factory", ephemeral=True)  # type: ignore
+
+
+class RemVoiceFactoryModel(ui.Modal, title="Add voice factory"):
+    channel_id = ui.TextInput(
+        label="factory channel id",
+        placeholder="1371111444402333333 for example",
+    )
+
+    def __init__(self, bot: Bot):
+        super().__init__()
+        self.bot: Bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction, /) -> None:
+        await self.bot.guild.db.delete_channel(channel_id=int(self.channel_id))
 
 
 async def main(*, bot: Bot, guild: discord.Guild):

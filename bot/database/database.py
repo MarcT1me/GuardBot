@@ -119,8 +119,8 @@ class GuardDatabase(Database):
     async def save_factory_channel(cls, *, server_id: int,
                                    channel_id: int,
                                    cooldown: float = 0.0, is_active=False,
-                                   last_creating_time: float = 0.0,
-                                   last_created_channel: int | None = None
+                                   last_updating_time: float = 0.0,
+                                   last_updated_channel: int | None = None
                                    ) -> Channel:
         return await cls.save_channel(
             server_id=server_id,
@@ -129,8 +129,8 @@ class GuardDatabase(Database):
 
             cooldown=cooldown,
             is_active=is_active,
-            last_creating_time=last_creating_time,
-            last_created_channel=last_created_channel
+            last_updating_time=last_updating_time,
+            last_updated_channel=last_updated_channel
         )
 
     @classmethod

@@ -21,7 +21,7 @@ class SettingsCog(commands.Cog):
         if on_ready_script:
             return await interaction.response.send_message(  # type: ignore
                 "**Settings panel**\n",
-                view=on_ready_script.get_settings_view(),
+                view=on_ready_script.get_settings_view(interaction),
                 ephemeral=True
             )
         return await interaction.response.send_message(  # type: ignore

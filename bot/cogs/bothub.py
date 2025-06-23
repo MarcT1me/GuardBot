@@ -87,6 +87,13 @@ class MainHub(ui.View):
             ephemeral=True
         )
 
+    @ui.button(label="🚀 on guild", style=discord.ButtonStyle.primary, custom_id="hub:bot_on_guild")
+    @app_commands.guild_only
+    async def bot_on_guild(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.defer()  # type: ignore
+        await self.bot.script_eng.guild_on_ready(interaction.guild)
+        await interaction.followup.send("Success", ephemeral=True)  # type: ignore
+
 
 async def setup(bot: GuardBot):
     logger.debug("⚙️ BotHubCog loading")

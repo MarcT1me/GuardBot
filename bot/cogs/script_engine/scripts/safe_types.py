@@ -86,8 +86,8 @@ class _SafeDataBase:
 
             cooldown=cooldown,
             is_active=is_active,
-            last_creating_time=0,
-            last_created_channel=None
+            last_updated_channel=None,
+            last_updating_time=0
         )
 
     async def save_temp_channel(self, *, channel_id: int,

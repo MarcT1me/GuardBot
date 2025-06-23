@@ -4,26 +4,37 @@ templates = [
     {
         "name": "greetings_list",
         "content": "➕ Бобро поржаловать, {member.mention}!\\"
-                   "➕ Встречайте: {member.mention}\\"
-                   "➕ Дарова, {member.mention}\\"
-                   "➕ У нас новый бибус: {member.mention}\\"
-                   "➕ Коничива: {member.mention}"
+                   "➕ Greetings: {member.mention}!\\"
+                   "➕ Hi, {member.mention}!\\"
+                   "➕ Hay! We have a new member: {member.mention}!\\"
+                   "➕ Konichiwa: {member.mention}!"
     },
     {
         "name": "join_message_title",
-        "content": "**Добро пожаловать на {member.guild.name}!**"
+        "content": "**Welcome to {member.guild.name}!**"
     },
     {
         "name": "join_message_description",
         "content":
-            """    {member.mention}, рады видеть тебя на нашем сервере {member.guild.name}!
+            """
+RU:
+    {member.mention}, рады видеть тебя на нашем сервере {member.guild.name}!
 Это сервер для всех, кто любит компы, люди, которые хотят пообщаться, геймеры и даже программисты.
 
 Я, {member.guild.me.mention}, помогаю администраторам и не только на сервере.
 Пройдись по путеводителю и прочитай все правила, не забудь зарегистрироваться в соответствующем канале.
 
 Можешь почитать или поспрашивать других пользователей о том, что я умею. К сожалению Я сейчас в разработке
-и парой могу нести чушь или сделать что-то, не так."""
+и парой могу нести чушь или сделать что-то, не так.
+ENG:
+    {member.mention}, we are glad to see you on our server {member.guild.name}!
+This is a server for everyone who loves computers, who want to chatting, gamers and even programmers.
+
+I, {member.guild.me.mention}, I help administrators, and not only on the our server.
+Check out the manual, don't forget to read all the rules.
+
+You can read or ask other users about what I can do. Unfortunately, I'm currently in development
+and I can talk nonsense or do something wrong."""
     },
     {
         "name": "join_message_footer",
@@ -32,24 +43,41 @@ templates = [
     {
         "name": "voice_channel_create",
         "content":
-            """🎤 Новая комната\\
-{member.mention} создал комнату {temp_channel.mention}
-настройки:
-> имя: `{option.name.name}`
-> изменения: `{option.change_allows.name}`
-> размер: `{option.size}`\\
-создатель {author.name}, фабрика: {parent_channel.name}"""
+            """🎤 New room\\
+{member.mention} created a new channel {temp_channel.mention}
+parameters:
+> room name: `{option.name.name}`
+> access to changes: `{option.change_allows.name}`
+> room size: `{option.size}`\\
+creator {author.name}, factory: {parent_channel.name}"""
     },
     {
         "name": "voice_channel_delete",
         "content":
-            """🚪 Комната удалена\\
-{member.mention} покинул комнату `{temp_channel.name}`\\
-создатель {author.name}, фабрика: {parent_channel.name}"""
+            """🚪 Room deleted\\
+{member.mention} has left the channel `{temp_channel.name}`\\
+creator {author.name}, factory: {parent_channel.name}"""
+    },
+    {
+        "name": "voice_channel_join",
+        "content":
+            """➕ Join into room\\
+{member.mention} join into {temp_channel.mention}\\
+creator {author.name}, factory: {parent_channel.name}"""
+    },
+    {
+        "name": "voice_channel_disconnect",
+        "content":
+            """➖ Disconnect from room\\
+{member.mention} has left from {temp_channel.mention}\\
+creator {author.name}, factory: {parent_channel.name}"""
     },
     {
         "name": "farewell_list",
-        "content": "Пользователь {member.mention} покинул нас\\Спасибо за визит, {member.name}!\\До свидания, {member.display_name}"
+        "content": "User {member.mention} has left us\\"
+                   "Thank you for visiting, {member.mention}!\\"
+                   "Goodbye, {member.mention}\\"
+                   "See you later, {member.mention}"
     },
 ]
 
