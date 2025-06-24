@@ -60,7 +60,7 @@ class AiCog(commands.Cog):
 class ChatSession:
     client = OpenAI(api_key=os.getenv("XAI_API_KEY"), base_url="https://api.x.ai/v1")
     MAX_HISTORY_LEN = 10
-    UPDATE_INTERVAL = 10
+    UPDATE_INTERVAL = 100
 
     def __init__(self, bot: GuardBot, user_id: int, guild_id: int):
         self.bot: GuardBot = bot
@@ -69,26 +69,24 @@ class ChatSession:
         self.user_id: int = user_id
         self.guild_id: int = guild_id
 
-    @property
-    def system_prompt(self) -> dict[str, str]:
-        # "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
-        # "Адаптируйся к тону чата, избегай повторений и лишних слов."
+    async def system_prompt(self) -> dict[str, str]:
         if self.guild_id is not None:
-            server = self.bot.db.get_server(guild_id=self.guild_id)
-            return {
-                "role": "system",
-                "content": (
-                    self.bot.db.get_template(server=server, template_name="ai_system_prompt")
-                )
-            }
-        else:
-            return {
-                "role": "system",
-                "content": (
-                    "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
-                    "Адаптируйся к тону чата, избегай повторений и лишних слов."
-                )
-            }
+            if server := await self.bot.db.get_server(guild_id=self.guild_id):
+                if template := await self.bot.db.get_template(server=server, template_name="ai_system_prompt"):
+                    return {
+                        "role": "system",
+                        "content": (
+                            template.content
+                        )
+                    }
+        logger.warning("template \"ai_system_prompt\" dont exist")
+        return {
+            "role": "system",
+            "content": (
+                "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
+                "Адаптируйся к тону чата, избегай повторений и лишних слов."
+            )
+        }
 
     async def handle_message(self, message: discord.Message, user_input: str):
 
@@ -97,16 +95,16 @@ class ChatSession:
             "content": f"{message.author.name}:  {user_input}"
         })
 
-        response_msg = await message.reply("GuardBot думает...")
+        response_msg = await message.reply("GuardBot thinking...")
         full_response = ""
         start_time = time.time()
 
         try:
             stream = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[self.system_prompt, *self.history],
-                max_tokens=500,
-                temperature=0.75,
+                messages=[await self.system_prompt(), *self.history],
+                max_tokens=1500,
+                temperature=0.7,
                 stream=True
             )
 
@@ -116,7 +114,11 @@ class ChatSession:
                     full_response += chunk.choices[0].delta.content
                     current_chunk += 1
                     if full_response and current_chunk % self.UPDATE_INTERVAL == 0:
-                        await response_msg.edit(content=full_response)
+                        if response_msg >= 1900:
+                            full_response = full_response[1900:]
+                            response_msg = await response_msg.channel.send(full_response)
+                        else:
+                            await response_msg.edit(content=full_response)
 
             self.history.append({"role": "assistant", "content": full_response})
             self._clean_history()
@@ -126,10 +128,9 @@ class ChatSession:
             embed.add_field(name="Сообщений", value=f"{len(self.history) // 2}", inline=True)
             embed.add_field(name="Модель", value=self.model_name, inline=True)
 
-            last_size = 0
-            for i in range(0, len(full_response), 1500):
-                await response_msg.edit(content=full_response[last_size:i], embed=embed)
-                last_size = i
+            logger.debug(f"response: {full_response}")
+
+            await response_msg.edit(content=full_response, embed=embed)
 
         except Exception as e:
             logger.error(f"AI error: {e}")
@@ -146,6 +147,7 @@ class ChatSession:
                 content=f"{full_response}\n⚠️ Произошла ошибка при обработке запроса: {str(e)}",
                 embed=embed
             )
+            raise e
 
     def _clean_history(self):
         if len(self.history) // 2 > self.MAX_HISTORY_LEN:
