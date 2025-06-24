@@ -97,28 +97,31 @@ class ChatSession:
 
         response_msg = await message.reply("GuardBot thinking...")
         full_response = ""
+        cur_response = full_response
         start_time = time.time()
 
         try:
             stream = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[await self.system_prompt(), *self.history],
-                max_tokens=1500,
+                max_tokens=1000 * (len(self.history) + 1),
                 temperature=0.7,
                 stream=True
             )
 
             current_chunk = 0
             for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    full_response += chunk.choices[0].delta.content
+                content = chunk.choices[0].delta.content
+                if content:
+                    cur_response += content
+                    full_response += content
                     current_chunk += 1
-                    if full_response and current_chunk % self.UPDATE_INTERVAL == 0:
-                        if response_msg >= 1900:
-                            full_response = full_response[1900:]
-                            response_msg = await response_msg.channel.send(full_response)
+                    if cur_response and current_chunk % self.UPDATE_INTERVAL == 0:
+                        if len(cur_response) >= 1900:
+                            cur_response = cur_response[1900:]
+                            response_msg = await response_msg.channel.send(cur_response)
                         else:
-                            await response_msg.edit(content=full_response)
+                            await response_msg.edit(content=cur_response)
 
             self.history.append({"role": "assistant", "content": full_response})
             self._clean_history()
@@ -128,7 +131,7 @@ class ChatSession:
             embed.add_field(name="Сообщений", value=f"{len(self.history) // 2}", inline=True)
             embed.add_field(name="Модель", value=self.model_name, inline=True)
 
-            logger.debug(f"response: {full_response}")
+            logger.debug(f"response: {cur_response}")
 
             await response_msg.edit(content=full_response, embed=embed)
 
@@ -144,7 +147,7 @@ class ChatSession:
             embed.add_field(name="Модель", value=self.model_name, inline=True)
 
             await response_msg.edit(
-                content=f"{full_response}\n⚠️ Произошла ошибка при обработке запроса: {str(e)}",
+                content=f"{cur_response}\n⚠️ Произошла ошибка при обработке запроса: {str(e)}",
                 embed=embed
             )
             raise e
