@@ -216,6 +216,13 @@ class LightScriptView(ui.View):
             ExecuteScriptModal(self.cog)
         )
 
+    @ui.button(label="🚀 on guild", style=discord.ButtonStyle.primary, custom_id="hub:bot_on_guild")
+    @app_commands.guild_only
+    async def bot_on_guild(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.defer()  # type: ignore
+        await self.cog.engine.guild_on_ready(interaction.guild)
+        await interaction.followup.send("Success", ephemeral=True)  # type: ignore
+
 
 class CheckScriptsView(ui.View):
     _options = [
@@ -434,6 +441,13 @@ class ScriptView(ui.View):
         await interaction.response.send_modal(  # type: ignore
             ExecuteScriptModal(self.cog)
         )
+
+    @ui.button(label="🚀 on guild", style=discord.ButtonStyle.primary, custom_id="hub:bot_on_guild")
+    @app_commands.guild_only
+    async def bot_on_guild(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.defer()  # type: ignore
+        await self.cog.engine.guild_on_ready(interaction.guild)
+        await interaction.followup.send("Success", ephemeral=True)  # type: ignore
 
 
 class UpdateScriptsModal(ui.Modal, title="Обновление скриптов"):

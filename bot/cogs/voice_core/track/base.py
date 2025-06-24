@@ -60,13 +60,18 @@ class BaseTrack:
                 token_file.write(cls._API_CREDENTIALS.to_json())
             cls._API_CREDENTIALS_LAST_UPDATE_TIME = cur_time
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, info: dict = {}):
         self.url = url
 
-        self.info: dict = {}
+        self.info: dict = info
         self.source: Optional[FFmpegOpusAudio] = None
 
-        self._initialize()
+        self._initialize() if not info else None
+
+        self.playback_start: Optional[float] = None
+        self.paused_duration: float = 0.0
+        self.last_pause_time: Optional[float] = None
+        self.start_pos = 0
 
     def _initialize(self):
         raise NotImplementedError
@@ -92,6 +97,14 @@ class BaseTrack:
         except Exception as e:
             logger.exception(f"Any error in playlist checking process: {e}")
             raise
+
+    @property
+    def duration(self) -> int:
+        """Длительность трека в секундах"""
+        if self.info:
+            return self.info.get("duration", 0)
+        logger.warning("Duration not found in info")
+        return 0
 
     @property
     def beautiful_title(self) -> str:

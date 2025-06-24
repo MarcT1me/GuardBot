@@ -4,8 +4,8 @@ import lib.template_init as template_init
 import lib.voice_option as voice_option
 
 
-async def add_users(bot: Bot, interaction: discord.Interaction):
-    for user in interaction.guild.members:
+async def add_users(bot: Bot, guild: discord.Guild, channel: discord.TextChannel) -> None:
+    for user in guild.members:
         await bot.guild.db.save_user(
             user_id=user.id,
             voice_settings=voice_option.VoiceSettings(
@@ -14,31 +14,30 @@ async def add_users(bot: Bot, interaction: discord.Interaction):
                 0
             ).to_dict()
         )
-    await interaction.followup.send("Users added to DataBase", ephemeral=True)
+    await channel.send("Users added to DataBase")
 
 
-async def main(*, bot: Bot, interaction: discord.Interaction):
-    await bot.guild.db.init(interaction.guild_id, is_active=True)
+async def main(*, bot: Bot, guild: discord.Guild):
+    await bot.guild.db.init(guild.id, is_active=True)
 
-    await interaction.followup.send(f"Guild: {interaction.guild} added to DataBase", ephemeral=True)
+    channel: discord.TextChannel = guild.safety_alerts_channel or guild.system_channel
+    await channel.send(f"Guild: {guild} added to DataBase")
 
     try:
-        await add_users(bot, interaction)
+        await add_users(bot, guild, channel)
     except Exception as e:
-        await interaction.followup.send(f"Error adding users: {e}", ephemeral=True)
+        await  channel.send(f"Error adding users: {e}")
         logger.exception("Error adding users")
 
     try:
         await template_init.init(bot)
-        await interaction.followup.send(
-            "Template added to GuardDatabase",
-            ephemeral=True
+        await channel.send(
+            "Template added to GuardDatabase"
         )
     except Exception as e:
-        await interaction.followup.send(
-            f"Error adding templates: {e}",
-            ephemeral=True
+        await channel.send(
+            f"Error adding templates: {e}"
         )
         logger.exception("Error adding templates")
 
-    logger.success(f"init bot deps for {interaction.guild}")
+    logger.success(f"init bot deps for {guild}")

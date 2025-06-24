@@ -60,7 +60,7 @@ class AiCog(commands.Cog):
 class ChatSession:
     XAI_API_KEY: str = os.getenv("XAI_API_KEY")
     MAX_HISTORY_LEN = 10
-    UPDATE_INTERVAL = 2.5
+    UPDATE_INTERVAL = 100
 
     def __init__(self, bot: GuardBot):
         self.bot: GuardBot = bot
@@ -96,11 +96,13 @@ class ChatSession:
                 stream=True
             )
 
+            current_chunk = 0
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     full_response += chunk.choices[0].delta.content
-                    if time.time() - start_time >= self.UPDATE_INTERVAL:
+                    if current_chunk // self.UPDATE_INTERVAL == 0:
                         await response_msg.edit(content=full_response or "GuardBot думает...")
+                    current_chunk += 1
 
             self.history.append({"role": "assistant", "content": full_response})
             self._clean_history()

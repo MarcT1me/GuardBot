@@ -34,10 +34,11 @@ class TrackStream(BaseTrack):
             '-bufsize 512k',
             '-rtbufsize 2M',
             '-b:a 192k',
-            '-max_delay 500000'
+            '-max_delay 500000',
+            f'-ss {start_time if start_time > 0 else 0}'
         ]
-        if start_time > 0:
-            options.append(f'-ss {start_time}')
+        self.start_pos = start_time
+        logger.info(f"start_pos: {self.start_pos}")
 
         self.check_token_expiry()
         self.source = FFmpegOpusAudio(
@@ -46,14 +47,15 @@ class TrackStream(BaseTrack):
                 '-reconnect 1',
                 '-reconnect_streamed 1',
                 '-reconnect_delay_max 5',
-                '-headers', '\r\n'.join(f'{k}: {v}' for k, v in self._COMMON_HEADERS.items())
+                '-headers', '\r\n'.join(f'{k}: {v}' for k, v in self._COMMON_HEADERS.items()),
             ],
             options=options
         )
 
     def cleanup(self) -> None:
         try:
-            self.source.cleanup()
+            if self.source:
+                self.source.cleanup()
             logger.debug(f"Cleaned up audio source: {self.title}")
         except Exception as e:
             logger.error(f"Error cleaning source: {str(e)}")

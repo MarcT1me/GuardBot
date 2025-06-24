@@ -16,6 +16,8 @@ class BotToolCog(commands.Cog):
 
     @GuardBot.error_handler(is_defer=True)
     async def restart_bot(self, interaction: discord.Interaction, time: int = 0, interval: int = 60):
+        await self.bot.set_status("restart coming soon")
+
         if time > 0:
             await self._wait_any(
                 interaction,
@@ -29,6 +31,8 @@ class BotToolCog(commands.Cog):
 
     @GuardBot.error_handler(is_defer=True)
     async def close_bot(self, interaction: discord.Interaction, time: int = 0, interval: int = 60):
+        await self.bot.set_status("shutdown coming soon")
+
         if time > 0:
             await self._wait_any(
                 interaction,

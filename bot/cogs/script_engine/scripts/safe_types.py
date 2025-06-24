@@ -51,6 +51,17 @@ class _SafeDataBase:
             **kwargs
         )
 
+    async def dispose(self, _id: int):
+        guild = GuardBot.instance.get_guild(_id)
+        await GuardBot.instance.voice_state_manager.disconnect_guild(guild)
+        for channel in self.get_channels(channel_type="voice_factory"):
+            await channel.delete()
+        for user in guild.members:
+            await self.remove_user(user_id=user.id)
+        await GuardDatabase.remove_server(
+            guild_id=_id
+        )
+
     def server_addition(self, name: str) -> Any:
         return self.__server.additions.get(name)
 
@@ -165,6 +176,7 @@ class SafeBot:
     def __init__(self, bot_user: discord.User, script_guild: _ScriptGuild):
         self.name = bot_user.name
         self.global_name = bot_user.global_name
+        self.id: int = bot_user.id
         self.mention: str = getattr(bot_user, "mention")
         self.color: discord.Colour = getattr(bot_user, "color")
         self.banner: discord.Asset = getattr(bot_user, "banner")

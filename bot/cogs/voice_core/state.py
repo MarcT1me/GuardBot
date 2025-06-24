@@ -1,11 +1,12 @@
 import asyncio
 from typing import Optional, Iterator
+import time
 
 import discord
 from loguru import logger
 
 from bot import GuardBot
-from .track import BaseTrack, TrackFile
+from .track import BaseTrack, TrackFile, TrackStream
 
 
 class VoiceState:
@@ -17,6 +18,8 @@ class VoiceState:
         self.queue: list[BaseTrack] = []
 
         self._is_active = False
+        self._is_restart = False
+        self.restart_count = 0
 
     async def update_voice_client(self, channel: discord.VoiceChannel | discord.StageChannel):
         await self.connect_or_move(channel)
@@ -73,6 +76,7 @@ class VoiceState:
                 return self._voice_client.play(track.source)
             await self.add_source(track, index=0)
             await self.play_next(interaction)
+        return None
 
     async def add_source(self, track: BaseTrack, index: int = None) -> None:
         if index:
@@ -92,17 +96,19 @@ class VoiceState:
             await self._set_next()
             await self._play_current(interaction)
 
+            self._is_restart = False
+
             # Ожидаем завершения текущего трека
             while self.is_playing or self.is_paused:
                 await asyncio.sleep(0.0)
 
             if self.queue:
                 await interaction.channel.send(
-                    f"Переключаюсь на следующий трек **{self.queue[0].beautiful_title}**"
+                    f"Switching to the next track **{self.queue[0].beautiful_title}**"
                 )
 
         if not self.queue and self._is_active:
-            await interaction.channel.send("Очередь воспроизведения кончилась")
+            await interaction.channel.send("The playback queue has ended")
 
         self._is_active = False
 
@@ -112,13 +118,17 @@ class VoiceState:
 
         if self.queue:
             next_track = self.queue.pop(0)
-            await next_track.create_source()
+            await next_track.create_source() if not self._is_restart else None
             self.current_track = next_track
             logger.info(f"set next track: {next_track.beautiful_title}")
 
     async def _play_current(self, interaction):
         if not self._voice_client or not self.current_track:
             return
+
+        self.current_track.playback_start = time.time()
+        self.current_track.paused_duration = 0.0
+        self.current_track.last_pause_time = None
 
         self._voice_client.play(
             self.current_track.source,
@@ -134,20 +144,74 @@ class VoiceState:
     ) -> discord.Message | None:
         if error:
             logger.error(f"Playback error: {str(error)}")
-            return await interaction.followup.send(f"Ошибка воспроизведения: {str(error)}")
+            return await interaction.followup.send(f"Playback error: {str(error)}", ephemeral=True)
+
+        # elapsed = await self.calculate_playback_time()
+        #
+        # if elapsed < self.current_track.duration - 2 and self._is_active:
+        #     if self.restart_count < 10:
+        #         await self._restart_track(elapsed)
+        #         self.restart_count += 1
+        #     else:
+        #         self.restart_count = 0
+        # else:
+        #     self.restart_count = 0
 
         if self.current_track:
             self.current_track.cleanup()
             self.current_track = None
         return None
 
+    async def calculate_playback_time(self) -> float:
+        if not self.current_track or not self.current_track.playback_start:
+            return 0.0
+
+        total_time = time.time() - self.current_track.playback_start + self.current_track.start_pos
+        paused_time = self.current_track.paused_duration
+
+        if self.current_track.last_pause_time:
+            paused_time += time.time() - self.current_track.last_pause_time
+
+        return total_time - paused_time
+
+    async def seek(self, position: float, interaction: discord.Interaction) -> None:
+        """Перемотка текущего трека"""
+        if not self.current_track:
+            return
+
+        if position < 0:
+            position = 0
+        if position > self.current_track.duration:
+            position = self.current_track.duration - 1
+
+        # Останавливаем и перезапускаем с новой позиции
+        if self._voice_client and (self.is_playing or self.is_paused):
+            await self._restart_track(position)
+
+    async def _restart_track(self, position: float):
+        logger.warning(f"Restarting track from {position}s: {self.current_track.beautiful_title}")
+        self._is_restart = True
+
+        new_track = TrackStream( self.current_track.url, info=self.current_track.info)
+        await new_track.create_source(start_time=position)
+
+        self.queue.insert(0, new_track)
+
+        is_active = self._is_active
+        await self.stop()
+        self._is_active = is_active
+
     async def pause(self) -> None:
         if self.is_playing and self.current_track:
+            self.current_track.last_pause_time = time.time()
             logger.info(f"pause track, {self.current_track.beautiful_title}")
             self._voice_client.pause()
 
     async def resume(self) -> None:
         if self.is_paused and self.current_track:
+            if self.current_track.last_pause_time:
+                self.current_track.paused_duration += time.time() - self.current_track.last_pause_time
+                self.current_track.last_pause_time = None
             logger.info(f"resume track, {self.current_track.beautiful_title}")
             self._voice_client.resume()
 
@@ -184,17 +248,20 @@ class VoiceStateManager:
 
     async def disconnect_all(self):
         for guild in GuardBot.instance.guilds:
-            if voice_state := self.remove(guild.id):
-                await voice_state.stop()
-                await voice_state.cleanup()
-                await voice_state.disconnect()
+            await self.disconnect_guild(guild)
 
-            for db_channel in await GuardBot.instance.db.get_channels(
-                    server=await GuardBot.instance.db.get_server(guild_id=guild.id), channel_type="temp_voice"
-            ):
-                await db_channel.delete()
-                if channel := guild.get_channel(db_channel.id):
-                    await channel.delete(reason="channel auto-delete (disconnect_all)")
+    async def disconnect_guild(self, guild: discord.Guild):
+        if voice_state := self.remove(guild.id):
+            await voice_state.stop()
+            await voice_state.cleanup()
+            await voice_state.disconnect()
+
+        for db_channel in await GuardBot.instance.db.get_channels(
+                server=await GuardBot.instance.db.get_server(guild_id=guild.id), channel_type="temp_voice"
+        ):
+            await db_channel.delete()
+            if channel := guild.get_channel(db_channel.id):
+                await channel.delete(reason="channel auto-delete (disconnect_all)")
 
     def voice_state(self, guild_id: int) -> VoiceState:
         if guild_id not in self.voice_states:

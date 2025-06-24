@@ -58,6 +58,10 @@ class GuardDatabase(Database):
         return server
 
     @classmethod
+    async def remove_server(cls, *, guild_id: int) -> None:
+        await Server.filter(guild_id=guild_id).delete()
+
+    @classmethod
     async def get_user(cls, *, server: Server, user_id: int) -> User | None:
         return await User.get_or_none(server=server, user_id=user_id)
 

@@ -68,6 +68,8 @@ class ScriptDatabase:
 
     async def init(self, _id: int, **kwargs): pass
 
+    async def dispose(self, _id: int): pass
+
     def server_addition(self, name: str) -> Any: pass
 
     def save_server_addition(self, name: str, value: Any): pass
@@ -114,6 +116,7 @@ class ScriptGuild:
 
 class Bot:
     name: str
+    id: int
     global_name: str
     mention: str
     color: discord.Colour

@@ -1,5 +1,4 @@
 from discord import FFmpegPCMAudio
-
 from loguru import logger
 
 from .base import BaseTrack

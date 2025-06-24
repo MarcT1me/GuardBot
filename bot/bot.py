@@ -175,11 +175,12 @@ class GuardBot(commands.Bot):
     @commands.Cog.listener()
     async def on_ready(self):
         self._cog_loading_event.set()
-        await self.set_status("ready for operation")
+        await self.set_status("Ready to work")
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
 
     async def set_status(self, status: str):
         activity = discord.CustomActivity(name=status)  # Кастомный статус
+        discord.ActivityType.
         await self.change_presence(activity=activity)
 
     @asynccontextmanager
@@ -270,5 +271,7 @@ class GuardBot(commands.Bot):
     async def close(self) -> None:
         if manager := self.voice_state_manager:
             await manager.disconnect_all()
+        await self.set_status("has stopped working")
+        await asyncio.sleep(0.1)
         await self.db.close()
         await super().close()

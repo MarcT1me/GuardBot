@@ -876,6 +876,85 @@ class VoiceCog(commands.Cog):
                 ephemeral=True
             )
 
+    # @app_commands.command(
+    #     name="seek",
+    #     description="Rewinding a track to a position"
+    # )
+    # @app_commands.describe(position="Позиция в секундах")
+    # @app_commands.guild_only
+    # @GuardBot.error_handler(is_defer=True)
+    # async def seek_command(self, interaction: discord.Interaction, position: float):
+    #     # Стандартные проверки
+    #     if self.execution_pause_time:
+    #         return await interaction.response.send_message(  # type: ignore
+    #             f"Voice commands suspended! Wait {int(self.execution_paused_time_still)}s",
+    #             ephemeral=True
+    #         )
+    #     user_voice = interaction.user.voice
+    #     if not user_voice:
+    #         return await interaction.response.send_message(  # type: ignore
+    #             "You're not in a voice channel", ephemeral=True)
+    #
+    #     guild = interaction.guild
+    #     voice_state = self.voice_state_manager.voice_state(guild.id)
+    #
+    #     if not voice_state.current_channel or voice_state.current_channel.id != user_voice.channel.id:
+    #         return await interaction.response.send_message(  # type: ignore
+    #             f"I'm in another channel: {voice_state.current_channel.mention}",
+    #             ephemeral=True
+    #         )
+    #
+    #     await interaction.response.defer()  # type: ignore
+    #     await voice_state.seek(position, interaction)
+    #     await interaction.followup.send(f"⏩ Rewind to {position} seconds")
+    #     return None
+
+    @app_commands.command(
+        name="position",
+        description="Show current position in track"
+    )
+    @app_commands.guild_only
+    @GuardBot.error_handler()
+    async def position_command(self, interaction: discord.Interaction):
+        # Стандартные проверки
+        if self.execution_pause_time:
+            return await interaction.response.send_message(  # type: ignore
+                f"Voice commands suspended! Wait {int(self.execution_paused_time_still)}s",
+                ephemeral=True
+            )
+        user_voice = interaction.user.voice
+        if not user_voice:
+            return await interaction.response.send_message(  # type: ignore
+                "You're not in a voice channel", ephemeral=True)
+
+        guild = interaction.guild
+        voice_state = self.voice_state_manager.voice_state(guild.id)
+
+        if not voice_state.current_channel or voice_state.current_channel.id != user_voice.channel.id:
+            return await interaction.response.send_message(  # type: ignore
+                f"I'm in another channel: {voice_state.current_channel.mention}",
+                ephemeral=True
+            )
+
+        if not voice_state.current_track:
+            return await interaction.response.send_message(  # type: ignore
+                "Nothing is playing", ephemeral=True)
+
+        current_position = await voice_state.calculate_playback_time()
+        duration = voice_state.current_track.duration
+
+        # Форматирование времени
+        def format_time(seconds):
+            m, s = divmod(int(seconds), 60)
+            return f"{m}:{s:02d}"
+
+        await interaction.response.send_message(  # type: ignore
+            f"⏱️ {format_time(current_position)} / {format_time(duration)}",
+            ephemeral=True
+        )
+
+        return None
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member,
                                     before: discord.VoiceState, after: discord.VoiceState):
