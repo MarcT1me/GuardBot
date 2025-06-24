@@ -79,6 +79,11 @@ creator {author.name}, factory: {parent_channel.name}"""
                    "Goodbye, {member.mention}\\"
                    "See you later, {member.mention}"
     },
+    {
+        "name": "ai_system_prompt",
+        "content": "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
+                   "Адаптируйся к тону чата, избегай повторений и лишних слов."
+    },
 ]
 
 

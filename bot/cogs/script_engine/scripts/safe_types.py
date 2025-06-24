@@ -4,7 +4,6 @@ from abc import abstractmethod
 
 import discord
 from discord.ext import commands
-from loguru import logger
 
 import bot
 from bot import GuardBot, GuardDatabase
@@ -25,6 +24,7 @@ class _SafeDiscordApi:
 
     VoiceState = discord.VoiceState
     Permissions = discord.Permissions
+    TextStyle = discord.TextStyle
 
     Colour = discord.Colour
     Asset = discord.Asset
@@ -181,6 +181,7 @@ class SafeBot:
         self.color: discord.Colour = getattr(bot_user, "color")
         self.banner: discord.Asset = getattr(bot_user, "banner")
         self.avatar: discord.Asset = getattr(bot_user, "avatar")
+        self.loop: asyncio.EventLoop = GuardBot.instance.loop
         self.guild = script_guild
 
     async def setup_guild_only_cog(self, cog: commands.Cog):

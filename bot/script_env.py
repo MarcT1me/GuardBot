@@ -44,6 +44,7 @@ class discord:
 
     VoiceState = _discord.VoiceState
     Permissions = _discord.Permissions
+    TextStyle = _discord.TextStyle
 
     Colour = _discord.Colour
     Asset = _discord.Asset
@@ -123,6 +124,7 @@ class Bot:
     banner: discord.Asset
     avatar: discord.Asset
     guild: ScriptGuild
+    loop: asyncio.EventLoop
 
     async def setup_guild_only_cog(self, cog: Cog): pass
 

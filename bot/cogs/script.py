@@ -221,7 +221,7 @@ class LightScriptView(ui.View):
     async def bot_on_guild(self, interaction: discord.Interaction, _: ui.Button):
         await interaction.response.defer()  # type: ignore
         await self.cog.engine.guild_on_ready(interaction.guild)
-        await interaction.followup.send("Success", ephemeral=True)  # type: ignore
+        await interaction.followup.send("✅ Success", ephemeral=True)  # type: ignore
 
 
 class CheckScriptsView(ui.View):
@@ -447,7 +447,7 @@ class ScriptView(ui.View):
     async def bot_on_guild(self, interaction: discord.Interaction, _: ui.Button):
         await interaction.response.defer()  # type: ignore
         await self.cog.engine.guild_on_ready(interaction.guild)
-        await interaction.followup.send("Success", ephemeral=True)  # type: ignore
+        await interaction.followup.send("✅ Success", ephemeral=True)  # type: ignore
 
 
 class UpdateScriptsModal(ui.Modal, title="Обновление скриптов"):

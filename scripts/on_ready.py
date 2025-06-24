@@ -1,6 +1,3 @@
-from discord import Interaction
-from discord._types import ClientT
-
 from bot.script_env import *
 import lib.voice_option as voice_option
 
@@ -203,8 +200,9 @@ class AdminSettingsView(ui.View):
 
     @ui.button(label="Change AI System prompt")
     async def change_ai_system_prompt(self, interaction: discord.Interaction, _: ui.Button):
+        default = await self.bot.guild.db.get_template(template_name="ai_system_prompt")
         await interaction.response.send_modal(  # type: ignore
-            ChangeSystemPrompt(self.bot)
+            ChangeSystemPrompt(self.bot, default.content)
         )
 
 
@@ -261,17 +259,18 @@ class RemVoiceFactoryModel(ui.Modal, title="Add voice factory"):
 
 
 class ChangeSystemPrompt(ui.Modal, title="Change System prompt"):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot, default: str):
         super().__init__()
         self.bot: Bot = bot
 
         self.template = ui.TextInput(
             label="template",
-            default=bot.guild.db.get_template(template_name="ai_system_prompt")
+            default=default,
+            style=discord.TextStyle.paragraph
         )
         self.add_item(self.template)
 
-    async def on_submit(self, interaction: Interaction[ClientT], /) -> None:
+    async def on_submit(self, interaction: discord.Interaction, /) -> None:
         await self.bot.guild.db.save_template(
             name="ai_system_prompt",
             content=self.template.value or
