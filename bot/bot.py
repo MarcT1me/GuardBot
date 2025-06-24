@@ -179,8 +179,7 @@ class GuardBot(commands.Bot):
         logger.success(f"✅ Бот {self.user} загрузил все данные и готов к работе!")
 
     async def set_status(self, status: str):
-        activity = discord.CustomActivity(name=status)  # Кастомный статус
-        discord.ActivityType.
+        activity = discord.CustomActivity(name=status)
         await self.change_presence(activity=activity)
 
     @asynccontextmanager

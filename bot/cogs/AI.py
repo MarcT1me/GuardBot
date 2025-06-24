@@ -25,7 +25,7 @@ class AiCog(commands.Cog):
     @app_commands.command(name="change_ai_model", description="Switch AI model")
     @GuardBot.error_handler()
     async def change_ai_model(self, interaction: discord.Interaction, ai_model: str):
-        self.manager.session(interaction.user).model_name = ai_model
+        self.manager.session(interaction.user, interaction.guild).model_name = ai_model
         await interaction.response.send_message(f"Модель изменена на: `{ai_model}`", ephemeral=True)  # type: ignore
 
     @change_ai_model.autocomplete('ai_model')
@@ -52,31 +52,45 @@ class AiCog(commands.Cog):
             return
 
         if self.bot.user.mentioned_in(msg):
-            session = self.manager.session(msg.author)
+            session = self.manager.session(msg.author, msg.guild)
             clean_content = msg.content.replace(f"<@{self.bot.user.id}>", "GuardBot").strip()
             await session.handle_message(msg, clean_content)
 
 
 class ChatSession:
-    XAI_API_KEY: str = os.getenv("XAI_API_KEY")
+    client = OpenAI(api_key=os.getenv("XAI_API_KEY"), base_url="https://api.x.ai/v1")
     MAX_HISTORY_LEN = 10
-    UPDATE_INTERVAL = 100
+    UPDATE_INTERVAL = 10
 
-    def __init__(self, bot: GuardBot):
+    def __init__(self, bot: GuardBot, user_id: int, guild_id: int):
         self.bot: GuardBot = bot
         self.model_name: str = "grok-3-mini"
         self.history: list[dict[str, str]] = []
+        self.user_id: int = user_id
+        self.guild_id: int = guild_id
 
-        self.system_prompt = {
-            "role": "system",
-            "content": (
-                "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
-                "Адаптируйся к тону чата, избегай повторений и лишних слов."
-            )
-        }
+    @property
+    def system_prompt(self) -> dict[str, str]:
+        # "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
+        # "Адаптируйся к тону чата, избегай повторений и лишних слов."
+        if self.guild_id is not None:
+            server = self.bot.db.get_server(guild_id=self.guild_id)
+            return {
+                "role": "system",
+                "content": (
+                    self.bot.db.get_template(server=server, template_name="ai_system_prompt")
+                )
+            }
+        else:
+            return {
+                "role": "system",
+                "content": (
+                    "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
+                    "Адаптируйся к тону чата, избегай повторений и лишних слов."
+                )
+            }
 
     async def handle_message(self, message: discord.Message, user_input: str):
-        client = OpenAI(api_key=self.XAI_API_KEY, base_url="https://api.x.ai/v1")
 
         self.history.append({
             "role": "user",
@@ -88,11 +102,11 @@ class ChatSession:
         start_time = time.time()
 
         try:
-            stream = client.chat.completions.create(
+            stream = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[self.system_prompt, *self.history],
-                max_tokens=1000,
-                temperature=0.7,
+                max_tokens=500,
+                temperature=0.75,
                 stream=True
             )
 
@@ -100,9 +114,9 @@ class ChatSession:
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     full_response += chunk.choices[0].delta.content
-                    if current_chunk // self.UPDATE_INTERVAL == 0:
-                        await response_msg.edit(content=full_response or "GuardBot думает...")
                     current_chunk += 1
+                    if full_response and current_chunk % self.UPDATE_INTERVAL == 0:
+                        await response_msg.edit(content=full_response)
 
             self.history.append({"role": "assistant", "content": full_response})
             self._clean_history()
@@ -112,7 +126,10 @@ class ChatSession:
             embed.add_field(name="Сообщений", value=f"{len(self.history) // 2}", inline=True)
             embed.add_field(name="Модель", value=self.model_name, inline=True)
 
-            await response_msg.edit(content=full_response, embed=embed)
+            last_size = 0
+            for i in range(0, len(full_response), 1500):
+                await response_msg.edit(content=full_response[last_size:i], embed=embed)
+                last_size = i
 
         except Exception as e:
             logger.error(f"AI error: {e}")
@@ -140,8 +157,11 @@ class SessionManager:
         self.bot: GuardBot = bot
         self.sessions: dict[int, ChatSession] = {}
 
-    def session(self, user: discord.User) -> ChatSession:
-        return self.sessions.setdefault(user.id, ChatSession(self.bot))
+    def session(self, user: discord.User, guild: discord.Guild) -> ChatSession:
+        return self.sessions.setdefault(
+            user.id,
+            ChatSession(self.bot, user_id=user.id, guild_id=guild.id if guild else None)
+        )
 
     def get_session(self, user: discord.User) -> ChatSession | None:
         return self.sessions.get(user.id)

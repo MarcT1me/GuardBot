@@ -1,3 +1,6 @@
+from discord import Interaction
+from discord._types import ClientT
+
 from bot.script_env import *
 import lib.voice_option as voice_option
 
@@ -198,6 +201,12 @@ class AdminSettingsView(ui.View):
         resp += f"Announce channel:\n```\n{self.bot.guild.db.server_addition("voice_channel_announce")}```\n"
         await interaction.response.send_message(resp, ephemeral=True)  # type: ignore
 
+    @ui.button(label="Change AI System prompt")
+    async def change_ai_system_prompt(self, interaction: discord.Interaction, _: ui.Button):
+        await interaction.response.send_modal(  # type: ignore
+            ChangeSystemPrompt(self.bot)
+        )
+
 
 class AddVoiceFactoryModel(ui.Modal, title="Add voice factory"):
     channel_id = ui.TextInput(
@@ -249,6 +258,27 @@ class RemVoiceFactoryModel(ui.Modal, title="Add voice factory"):
 
     async def on_submit(self, interaction: discord.Interaction, /) -> None:
         await self.bot.guild.db.delete_channel(channel_id=int(self.channel_id))
+
+
+class ChangeSystemPrompt(ui.Modal, title="Change System prompt"):
+    def __init__(self, bot: Bot):
+        super().__init__()
+        self.bot: Bot = bot
+
+        self.template = ui.TextInput(
+            label="template",
+            default=bot.guild.db.get_template(template_name="ai_system_prompt")
+        )
+        self.add_item(self.template)
+
+    async def on_submit(self, interaction: Interaction[ClientT], /) -> None:
+        await self.bot.guild.db.save_template(
+            name="ai_system_prompt",
+            content=self.template.value or
+                    "Ты GuardBot, участник Discord-сервера. Отвечай кратко, по делу, дружелюбно. "
+                    "Адаптируйся к тону чата, избегай повторений и лишних слов."
+        )
+        await interaction.response.send_message("Successfully changed system prompt", ephemeral=True)  # type: ignore
 
 
 async def main(*, bot: Bot, guild: discord.Guild):
