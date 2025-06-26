@@ -27,22 +27,24 @@ async def main(*, bot: Bot, member: discord.Member = None, member_id: int = None
             logger.exception(f"User greeting error: {e}")
 
     event = asyncio.Event()
-    name = f"on_member_{member.id}"
+    name = f"on_member_registered_{member.id}"
     bot.guild.set_async_event(name, event)
     logger.info(name + " " + str(event))
 
     try:
-        await asyncio.wait_for(event.wait(), timeout=30)
+        await asyncio.wait_for(event.wait(), timeout=600)
     except asyncio.TimeoutError:
         # await guild.kick(member, reason="reg timeout")
         await member.send(
-            "You didn't accept the rules within 10 minutes (BETA)\n"
-            "Please excuse me if this is a false alarm. If for some reason you have been removed from the server, "
-            "try to contact the server administration.\n"
-            "\n"
+            "RU:\n"
             "Вы не согласились с ролями в течении 10 минут (БЕТА)\n"
             "Просим извинить если это ложное срабатывание. Если по какой-то причине вас удалило с сервера"
             "попытайтесь связаться с администрацией сервера.\n"
+            "\n"
+            "Eng:\n"
+            "You didn't accept the rules within 10 minutes (BETA)\n"
+            "Please excuse me if this is a false alarm. If for some reason you have been removed from the server, "
+            "try to contact the server administration.\n"
             "\n"
             "P.S. for more information write - @mt_proger"
         )
@@ -58,12 +60,21 @@ async def main(*, bot: Bot, member: discord.Member = None, member_id: int = None
     try:
         title: ScriptDatabase.template = await bot.guild.db.get_template(template_name="join_message_title")
         description: ScriptDatabase.template = await bot.guild.db.get_template(template_name="join_message_description")
+        descriptions = description.content.format(member=member).split("\\")
         footer: ScriptDatabase.template = await bot.guild.db.get_template(template_name="join_message_footer")
 
         embed = discord.Embed(
             title=title.content.format(member=member),
-            description=description.content.format(member=member),
+            description="",
             color=0xDE7A22
+        )
+        embed.add_field(
+            name="RU",
+            value=descriptions[0]
+        )
+        embed.add_field(
+            name="Eng",
+            value=descriptions[1]
         )
         embed.set_thumbnail(url=guild.icon.url)
         embed.set_footer(text=footer.content.format(member=member), icon_url=member.avatar.url)

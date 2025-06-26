@@ -102,7 +102,7 @@ async def main(*, bot: Bot, member: discord.Member,
                         reason=f"{parent_channel.name} child auto-creating"
                     )
 
-                    logger.success(f"Set permission in {temp_channel.name} for {member.name}")
+                    logger.success(f"Set permission {set_permission} in {temp_channel.name} for {override_obj.name}")
                 except Exception as e:
                     logger.error(f"Can\'t set permission in {temp_channel.name} for {member.name}: {e}")
 
@@ -114,23 +114,25 @@ async def main(*, bot: Bot, member: discord.Member,
                 logger.success("Temp voice created")
 
             try:
-                if resp_channel := guild.get_channel(bot.guild.db.server_addition("voice_channel_announce")):
-                    if embed := await get_embed(
-                            bot,
-                            member,
-                            "voice_channel_create" if is_new else "voice_channel_join",
-                            member,
-                            temp_channel=temp_channel,
-                            parent_channel=parent_channel,
-                            option=voice_settings
-                    ):
-                        await resp_channel.send(embed=embed)
-                    else:
-                        await resp_channel.send(
-                            f"User {member.mention} update temp channel: {temp_channel.mention}\n"
-                            f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
-                            allowed_mentions=discord.AllowedMentions(users=False, roles=False)
-                        )
+                resp_channel = guild.get_channel(bot.guild.db.server_addition("voice_channel_announce"))
+                embed = await get_embed(
+                    bot,
+                    member,
+                    "voice_channel_create" if is_new else "voice_channel_join",
+                    member,
+                    temp_channel=temp_channel,
+                    parent_channel=parent_channel,
+                    option=voice_settings
+                )
+
+                if resp_channel and embed:
+                    await resp_channel.send(embed=embed)
+                else:
+                    await resp_channel.send(
+                        f"User {member.mention} update temp channel: {temp_channel.mention}\n"
+                        f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
+                        allowed_mentions=discord.AllowedMentions(users=False, roles=False)
+                    )
             except Exception as e:
                 logger.error(f"Can not send message: {e}")
 
@@ -155,7 +157,6 @@ async def main(*, bot: Bot, member: discord.Member,
                 return
 
             parent_channel: discord.VoiceChannel = guild.get_channel(db_parent_channel.id)
-            resp_channel = guild.get_channel(bot.guild.db.server_addition("voice_channel_announce"))
             owner_id = db_channel.additions.get("owner_id")
             owner = guild.get_member(owner_id) if owner_id else None
 
@@ -171,22 +172,24 @@ async def main(*, bot: Bot, member: discord.Member,
                     logger.success("Temp voice deleted")
 
                     try:
-                        if resp_channel:
-                            if embed := await get_embed(
-                                    bot,
-                                    member,
-                                    "voice_channel_delete",
-                                    owner or member,
-                                    temp_channel=temp_channel,
-                                    parent_channel=parent_channel
-                            ):
-                                await resp_channel.send(embed=embed)
-                            else:
-                                await resp_channel.send(
-                                    f"User {member.mention} has left temp channel: `{temp_channel.name}`\n"
-                                    f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
-                                    allowed_mentions=discord.AllowedMentions(users=False, roles=False)
-                                )
+                        resp_channel = guild.get_channel(bot.guild.db.server_addition("voice_channel_announce"))
+                        embed = await get_embed(
+                            bot,
+                            member,
+                            "voice_channel_delete",
+                            owner or member,
+                            temp_channel=temp_channel,
+                            parent_channel=parent_channel
+                        )
+
+                        if resp_channel and embed:
+                            await resp_channel.send(embed=embed)
+                        else:
+                            await resp_channel.send(
+                                f"User {member.mention} has left temp channel: `{temp_channel.name}`\n"
+                                f"time: {datetime.datetime.now().ctime()} * id: {member.id}",
+                                allowed_mentions=discord.AllowedMentions(users=False, roles=False)
+                            )
                     except Exception as e:
                         logger.error(f"Can not send message: {e}")
                 except discord.NotFound:

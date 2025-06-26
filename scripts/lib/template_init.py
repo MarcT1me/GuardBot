@@ -17,7 +17,6 @@ templates = [
         "name": "join_message_description",
         "content":
             """
-RU:
     {member.mention}, рады видеть тебя на нашем сервере {member.guild.name}!
 Это сервер для всех, кто любит компы, люди, которые хотят пообщаться, геймеры и даже программисты.
 
@@ -26,7 +25,7 @@ RU:
 
 Можешь почитать или поспрашивать других пользователей о том, что я умею. К сожалению Я сейчас в разработке
 и парой могу нести чушь или сделать что-то, не так.
-ENG:
+\\
     {member.mention}, we are glad to see you on our server {member.guild.name}!
 This is a server for everyone who loves computers, who want to chatting, gamers and even programmers.
 

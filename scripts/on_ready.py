@@ -238,9 +238,10 @@ class AddVoiceFactoryModel(ui.Modal, title="Add voice factory"):
             cooldown=float(self.cooldown.value),
             is_active=self.is_active.value == "True",
         )
-        await self.bot.guild.db.save_server_addition(
-            "voice_channel_announce", self.announce_channel.value
-        )
+        if self.announce_channel.value:
+            await self.bot.guild.db.save_server_addition(
+                "voice_channel_announce", int(self.announce_channel.value)
+            )
         await interaction.response.send_message("successfully add factory", ephemeral=True)  # type: ignore
 
 
